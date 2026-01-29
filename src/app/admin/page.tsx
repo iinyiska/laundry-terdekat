@@ -95,6 +95,7 @@ export default function AdminPage() {
     const [saveSuccess, setSaveSuccess] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [uploadError, setUploadError] = useState('')
+    const [debugMsg, setDebugMsg] = useState('')
     const fileInputRef = useRef<HTMLInputElement>(null)
     const supabase = createClient()
 
@@ -116,8 +117,15 @@ export default function AdminPage() {
     }
 
     const loadData = async () => {
-        const { data: s } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
-        if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
+        setDebugMsg('Loading data...')
+        const { data: s, error: settingsErr } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
+        if (settingsErr) {
+            setDebugMsg('DB Error: ' + settingsErr.message + ' - Jalankan schema-complete.sql di Supabase!')
+            console.error('Settings error:', settingsErr)
+        } else if (s) {
+            setSettings({ ...DEFAULT_SETTINGS, ...s })
+            setDebugMsg('Data loaded. bg_theme: ' + (s.bg_theme || 'default'))
+        }
         const { data: svc } = await supabase.from('platform_services').select('*').order('sort_order')
         if (svc) setServices(svc)
     }
@@ -240,16 +248,25 @@ export default function AdminPage() {
     const selectTheme = async (themeId: string) => {
         const newSettings = { ...settings, bg_theme: themeId }
         setSettings(newSettings)
+        setDebugMsg('Saving theme: ' + themeId)
 
         // Auto-save theme selection
         try {
-            await supabase.from('site_settings').update({
+            const { error } = await supabase.from('site_settings').update({
                 bg_theme: themeId,
                 updated_at: new Date().toISOString()
             }).eq('id', 'main')
-            setSaveSuccess(true)
-            setTimeout(() => setSaveSuccess(false), 1500)
-        } catch (err) {
+
+            if (error) {
+                setDebugMsg('❌ Save failed: ' + error.message)
+                console.error('Theme save error:', error)
+            } else {
+                setDebugMsg('✅ Theme saved: ' + themeId)
+                setSaveSuccess(true)
+                setTimeout(() => setSaveSuccess(false), 1500)
+            }
+        } catch (err: any) {
+            setDebugMsg('❌ Error: ' + err.message)
             console.error('Theme save error:', err)
         }
     }
@@ -336,6 +353,15 @@ export default function AdminPage() {
                     </div>
                 </div>
             </header>
+
+            {/* Debug Message */}
+            {debugMsg && (
+                <div className="px-4 max-w-5xl mx-auto mb-4">
+                    <div className={`p-3 rounded-xl text-sm ${debugMsg.includes('❌') || debugMsg.includes('Error') ? 'bg-red-500/20 text-red-300' : debugMsg.includes('✅') ? 'bg-green-500/20 text-green-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                        {debugMsg}
+                    </div>
+                </div>
+            )}
 
             <div className="px-4 max-w-5xl mx-auto">
                 {/* Tabs */}
