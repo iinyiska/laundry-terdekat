@@ -324,7 +324,7 @@ export default function AdminPage() {
                         <Link href="/" className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><ChevronLeft className="w-5 h-5" /></Link>
                         <div className="flex items-center gap-2">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center"><Shield className="w-5 h-5 text-white" /></div>
-                            <div><h1 className="font-bold text-lg text-white">Super Admin <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full ml-2">v2.1 FIXED</span></h1></div>
+                            <div><h1 className="font-bold text-lg text-white">Super Admin <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full ml-2">v2.2 FINAL</span></h1></div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -340,8 +340,8 @@ export default function AdminPage() {
             {status.msg && (
                 <div className="px-4 max-w-5xl mx-auto mb-4">
                     <div className={`p-4 rounded-xl flex items-center gap-3 ${status.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                            status.type === 'success' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
-                                'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                        status.type === 'success' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                            'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                         }`}>
                         {status.type === 'error' && <AlertCircle className="w-5 h-5" />}
                         {status.type === 'success' && <Check className="w-5 h-5" />}
@@ -416,8 +416,8 @@ export default function AdminPage() {
                                         onClick={() => theme.id !== 'custom' && selectTheme(theme.id)}
                                         disabled={theme.id === 'custom' && !settings.custom_bg_url}
                                         className={`p-4 rounded-2xl border-3 transition ${settings.bg_theme === theme.id
-                                                ? 'border-green-500 ring-4 ring-green-500/30 bg-green-500/10'
-                                                : 'border-white/20 hover:border-white/40'
+                                            ? 'border-green-500 ring-4 ring-green-500/30 bg-green-500/10'
+                                            : 'border-white/20 hover:border-white/40'
                                             } ${theme.id === 'custom' && !settings.custom_bg_url ? 'opacity-40 cursor-not-allowed' : ''}`}
                                     >
                                         <div
