@@ -12,19 +12,45 @@ type SiteSettings = {
   promo_enabled: boolean
   primary_color: string
   accent_color: string
+  feature_1_title: string
+  feature_1_desc: string
+  feature_2_title: string
+  feature_2_desc: string
+  feature_3_title: string
+  feature_3_desc: string
+  feature_4_title: string
+  feature_4_desc: string
+  express_enabled: boolean
+  express_label: string
+  express_eta: string
+  bg_theme: string
+}
+
+const DEFAULT_SETTINGS: SiteSettings = {
+  hero_title: 'Cuci Bersih, Wangi Sempurna',
+  hero_subtitle: 'Platform laundry paling canggih dengan deteksi lokasi otomatis, antar-jemput gratis, dan diskon hingga 20% untuk member.',
+  promo_text: 'Diskon 20% untuk Member Baru!',
+  promo_enabled: true,
+  primary_color: '#3b82f6',
+  accent_color: '#8b5cf6',
+  feature_1_title: 'Terdekat',
+  feature_1_desc: 'Outlet resmi di sekitarmu',
+  feature_2_title: 'Antar Jemput',
+  feature_2_desc: 'Gratis ongkir hingga 5km',
+  feature_3_title: 'Cepat',
+  feature_3_desc: 'Estimasi 24 jam selesai',
+  feature_4_title: 'Aman',
+  feature_4_desc: 'Garansi cucian hilang',
+  express_enabled: true,
+  express_label: 'Express (8 Jam)',
+  express_eta: '8 jam',
+  bg_theme: 'gradient'
 }
 
 export default function Home() {
   const [location, setLocation] = useState<{ city: string; kelurahan: string } | null>(null)
   const [isLocating, setIsLocating] = useState(false)
-  const [settings, setSettings] = useState<SiteSettings>({
-    hero_title: 'Cuci Bersih, Wangi Sempurna',
-    hero_subtitle: 'Platform laundry paling canggih dengan deteksi lokasi otomatis, antar-jemput gratis, dan diskon hingga 20% untuk member.',
-    promo_text: 'Diskon 20% untuk Member Baru!',
-    promo_enabled: true,
-    primary_color: '#3b82f6',
-    accent_color: '#8b5cf6'
-  })
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const supabase = createClient()
 
   useEffect(() => {
@@ -33,15 +59,8 @@ export default function Home() {
   }, [])
 
   const loadSettings = async () => {
-    const { data } = await supabase
-      .from('site_settings')
-      .select('*')
-      .eq('id', 'main')
-      .single()
-
-    if (data) {
-      setSettings(data)
-    }
+    const { data } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
+    if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
   }
 
   const getLocation = () => {
@@ -49,16 +68,15 @@ export default function Home() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          const { latitude, longitude } = pos.coords
           try {
             const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1`
             )
             const data = await response.json()
-            const address = data.address || {}
+            const addr = data.address || {}
             setLocation({
-              city: address.city || address.town || address.municipality || 'Jakarta',
-              kelurahan: address.suburb || address.village || address.neighbourhood || 'Kelurahan'
+              city: addr.city || addr.town || 'Jakarta',
+              kelurahan: addr.suburb || addr.village || 'Kelurahan'
             })
           } catch {
             setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' })
@@ -70,22 +88,33 @@ export default function Home() {
           setIsLocating(false)
         }
       )
-    } else {
-      setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' })
-      setIsLocating(false)
     }
   }
 
-  return (
-    <main className="min-h-screen pb-32">
-      {/* Ambient Background */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px]"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[150px]"></div>
-      </div>
+  const featureIcons = [MapPin, Truck, Clock, Shield]
+  const featureColors = ['from-blue-500 to-cyan-400', 'from-green-500 to-emerald-400', 'from-orange-500 to-yellow-400', 'from-purple-500 to-pink-400']
 
-      {/* Admin Link (Hidden) */}
+  return (
+    <main className="min-h-screen pb-32 relative">
+      {/* Background */}
+      {settings.bg_theme === 'photo' ? (
+        <div className="fixed inset-0 -z-10">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: 'url(/bg-hero.png)' }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-slate-900" />
+        </div>
+      ) : (
+        <div className="fixed inset-0 -z-10 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
+          <div className="absolute top-1/4 -left-32 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px]"></div>
+          <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px]"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[150px]"></div>
+        </div>
+      )}
+
+      {/* Admin Link */}
       <Link href="/admin" className="fixed top-4 right-4 z-50 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition text-gray-500 hover:text-white">
         <Settings className="w-5 h-5" />
       </Link>
@@ -104,18 +133,12 @@ export default function Home() {
             <h1 className="text-3xl font-bold gradient-text">Laundry Terdekat</h1>
           </div>
 
-          {/* Headline (Dynamic) */}
+          {/* Headline */}
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight text-white">
-            {settings.hero_title.split(',').map((part, i) => (
-              <span key={i}>
-                {i === 1 ? <span className="gradient-text">{part}</span> : part}
-                {i === 0 && settings.hero_title.includes(',') && ','}
-              </span>
-            ))}
-            <br />dalam Genggaman
+            {settings.hero_title}
           </h2>
 
-          <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-8">
+          <p className="text-gray-300 text-lg md:text-xl max-w-2xl mx-auto mb-8">
             {settings.hero_subtitle}
           </p>
 
@@ -126,22 +149,18 @@ export default function Home() {
                 <MapPin className="w-6 h-6 text-blue-400" />
               </div>
               <div className="flex-1">
-                <p className="text-sm text-gray-400 mb-1">Lokasi Anda Terdeteksi</p>
+                <p className="text-sm text-gray-400 mb-1">Lokasi Anda</p>
                 <p className="font-semibold text-white">
                   {isLocating ? (
                     <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Mendeteksi lokasi...
+                      <Loader2 className="w-4 h-4 animate-spin" /> Mendeteksi...
                     </span>
                   ) : (
                     `${location?.kelurahan}, ${location?.city}`
                   )}
                 </p>
               </div>
-              <button
-                onClick={getLocation}
-                className="p-3 rounded-xl bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition"
-              >
+              <button onClick={getLocation} className="p-3 rounded-xl bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition">
                 <Navigation className="w-5 h-5" />
               </button>
             </div>
@@ -151,7 +170,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link href="/order" className="btn-gradient text-lg flex items-center gap-2 pulse-glow">
               <Zap className="w-5 h-5" />
-              Mulai Laundry Sekarang
+              Order Sekarang
               <ChevronRight className="w-5 h-5" />
             </Link>
             <Link href="/register" className="glass px-8 py-4 rounded-2xl font-semibold text-gray-300 hover:text-white hover:bg-white/10 transition flex items-center gap-2">
@@ -162,24 +181,45 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Express Promo Banner */}
+      {settings.express_enabled && (
+        <section className="px-4 py-8 max-w-4xl mx-auto">
+          <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-3xl p-6 md:p-8">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-10 h-10 text-white" />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-2xl font-bold text-yellow-300 mb-2">⚡ {settings.express_label}</h3>
+                <p className="text-yellow-100/80">
+                  Butuh cepat? Layanan Express selesai dalam {settings.express_eta} dihitung dari waktu penjemputan.
+                  Cocok untuk keperluan mendesak!
+                </p>
+              </div>
+              <Link href="/order" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold px-8 py-4 rounded-2xl hover:opacity-90 transition whitespace-nowrap">
+                Order Express
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Features Grid */}
-      <section className="px-4 py-16 max-w-6xl mx-auto">
+      <section className="px-4 py-8 max-w-6xl mx-auto">
         <h3 className="text-2xl font-bold text-center mb-12 gradient-text">Kenapa Pilih Kami?</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-          {[
-            { icon: MapPin, title: 'Terdekat', desc: 'Outlet resmi di sekitarmu', color: 'from-blue-500 to-cyan-400' },
-            { icon: Truck, title: 'Antar Jemput', desc: 'Gratis ongkir hingga 5km', color: 'from-green-500 to-emerald-400' },
-            { icon: Clock, title: 'Cepat', desc: 'Estimasi 24 jam selesai', color: 'from-orange-500 to-yellow-400' },
-            { icon: Shield, title: 'Aman', desc: 'Garansi cucian hilang', color: 'from-purple-500 to-pink-400' },
-          ].map((feature, i) => (
-            <div key={i} className="glass p-6 card-hover text-center">
-              <div className={`w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center`}>
-                <feature.icon className="w-7 h-7 text-white" />
+          {[1, 2, 3, 4].map((num, i) => {
+            const Icon = featureIcons[i]
+            return (
+              <div key={num} className="glass p-6 card-hover text-center">
+                <div className={`w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${featureColors[i]} flex items-center justify-center`}>
+                  <Icon className="w-7 h-7 text-white" />
+                </div>
+                <h4 className="font-bold text-white mb-1">{(settings as any)[`feature_${num}_title`]}</h4>
+                <p className="text-sm text-gray-400">{(settings as any)[`feature_${num}_desc`]}</p>
               </div>
-              <h4 className="font-bold text-white mb-1">{feature.title}</h4>
-              <p className="text-sm text-gray-400">{feature.desc}</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -193,13 +233,13 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { name: 'Cuci Kering Satuan', price: 'Rp 5.000', unit: '/pcs', popular: true, img: '👕' },
-            { name: 'Cuci Setrika Kiloan', price: 'Rp 7.000', unit: '/kg', popular: false, img: '👔' },
-            { name: 'Dry Clean Jas/Blazer', price: 'Rp 35.000', unit: '/pcs', popular: true, img: '🧥' },
+            { name: 'Cuci Satuan', price: 'Rp 5.000', unit: '/pcs', img: '👕', tag: null },
+            { name: 'Cuci Kiloan', price: 'Rp 7.000', unit: '/kg', img: '🧺', tag: 'Hemat' },
+            { name: 'Express 8 Jam', price: 'Rp 15.000', unit: '/kg', img: '⚡', tag: 'Cepat' },
           ].map((service, i) => (
             <div key={i} className="glass p-6 card-hover relative overflow-hidden">
-              {service.popular && (
-                <span className="absolute top-4 right-4 badge-discount">Favorit</span>
+              {service.tag && (
+                <span className="absolute top-4 right-4 badge-discount">{service.tag}</span>
               )}
               <div className="text-5xl mb-4">{service.img}</div>
               <h4 className="font-bold text-xl text-white mb-2">{service.name}</h4>
@@ -229,8 +269,7 @@ export default function Home() {
                 {settings.promo_text}
               </h3>
               <p className="text-white/80 mb-6 max-w-xl">
-                Daftar sekarang dan nikmati potongan harga untuk setiap transaksi pertama.
-                Gratis ongkir juga lho!
+                Daftar sekarang dan nikmati potongan harga eksklusif. Bisa daftar pakai Google juga!
               </p>
               <Link href="/register" className="inline-flex items-center gap-2 bg-white text-purple-600 font-bold px-8 py-4 rounded-2xl hover:bg-gray-100 transition">
                 <Gift className="w-5 h-5" />
