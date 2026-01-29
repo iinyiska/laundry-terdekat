@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Settings, Eye, Lock, Check, X, Home, Menu, FileText, Zap, Image, Layout } from 'lucide-react'
+import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Settings, Lock, Check, X, Home, FileText, Zap, Image, Layout, Upload } from 'lucide-react'
 import Link from 'next/link'
 
 const ADMIN_PASSWORD = 'admin123laundry'
@@ -33,17 +33,15 @@ type SiteSettings = {
     express_eta: string
     express_enabled: boolean
     bg_theme: string
-    nav_style: string
+    custom_bg_url: string
 }
 
 type PlatformService = {
     id: string
     name: string
-    description: string
     icon: string
     price: number
     unit_type: string
-    category: string
     is_active: boolean
     sort_order: number
 }
@@ -74,15 +72,16 @@ const DEFAULT_SETTINGS: SiteSettings = {
     express_eta: '8 jam',
     express_enabled: true,
     bg_theme: 'gradient',
-    nav_style: 'floating'
+    custom_bg_url: ''
 }
 
 const BG_THEMES = [
-    { id: 'gradient', name: 'Gradient Modern', preview: 'linear-gradient(135deg, #0f172a, #1e293b)' },
-    { id: 'photo', name: 'Foto Laundry', preview: 'url(/bg-hero.png)' },
-    { id: 'dark', name: 'Dark Minimal', preview: '#0a0a0a' },
-    { id: 'blue', name: 'Ocean Blue', preview: 'linear-gradient(135deg, #0c4a6e, #164e63)' },
-    { id: 'purple', name: 'Royal Purple', preview: 'linear-gradient(135deg, #4c1d95, #581c87)' },
+    { id: 'gradient', name: 'Gradient Modern' },
+    { id: 'photo', name: 'Foto Laundry' },
+    { id: 'dark', name: 'Dark Minimal' },
+    { id: 'blue', name: 'Ocean Blue' },
+    { id: 'purple', name: 'Royal Purple' },
+    { id: 'custom', name: 'Custom Upload' },
 ]
 
 export default function AdminPage() {
@@ -93,9 +92,10 @@ export default function AdminPage() {
     const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     const [services, setServices] = useState<PlatformService[]>([])
     const [editingService, setEditingService] = useState<PlatformService | null>(null)
-    const [newService, setNewService] = useState<Partial<PlatformService>>({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', category: 'regular', is_active: true })
+    const [newService, setNewService] = useState<Partial<PlatformService>>({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', is_active: true })
     const [saving, setSaving] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
+    const [uploading, setUploading] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
@@ -117,24 +117,82 @@ export default function AdminPage() {
 
     const loadData = async () => {
         const { data: s } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
-        if (s) setSettings({ ...DEFAULT_SETTINGS, ...s })
+        if (s) {
+            setSettings({ ...DEFAULT_SETTINGS, ...s })
+        }
         const { data: svc } = await supabase.from('platform_services').select('*').order('sort_order')
         if (svc) setServices(svc)
     }
 
     const saveSettings = async () => {
         setSaving(true)
-        await supabase.from('site_settings').upsert({ id: 'main', ...settings, updated_at: new Date().toISOString() })
-        setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 2000)
+        try {
+            const { error } = await supabase
+                .from('site_settings')
+                .upsert({
+                    id: 'main',
+                    ...settings,
+                    updated_at: new Date().toISOString()
+                }, {
+                    onConflict: 'id'
+                })
+
+            if (error) {
+                console.error('Save error:', error)
+                alert('Gagal menyimpan: ' + error.message)
+            } else {
+                setSaveSuccess(true)
+                setTimeout(() => setSaveSuccess(false), 2000)
+            }
+        } catch (err: any) {
+            console.error('Save error:', err)
+            alert('Gagal menyimpan: ' + err.message)
+        }
         setSaving(false)
+    }
+
+    const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setUploading(true)
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `bg-custom-${Date.now()}.${fileExt}`
+
+            const { data, error } = await supabase.storage
+                .from('backgrounds')
+                .upload(fileName, file, { upsert: true })
+
+            if (error) {
+                // If bucket doesn't exist, use base64
+                const reader = new FileReader()
+                reader.onload = () => {
+                    const base64 = reader.result as string
+                    setSettings({ ...settings, custom_bg_url: base64, bg_theme: 'custom' })
+                }
+                reader.readAsDataURL(file)
+            } else {
+                const { data: urlData } = supabase.storage.from('backgrounds').getPublicUrl(fileName)
+                setSettings({ ...settings, custom_bg_url: urlData.publicUrl, bg_theme: 'custom' })
+            }
+        } catch {
+            // Fallback to base64
+            const reader = new FileReader()
+            reader.onload = () => {
+                const base64 = reader.result as string
+                setSettings({ ...settings, custom_bg_url: base64, bg_theme: 'custom' })
+            }
+            reader.readAsDataURL(file)
+        }
+        setUploading(false)
     }
 
     const addService = async () => {
         if (!newService.name) return
         await supabase.from('platform_services').insert({ ...newService, sort_order: services.length + 1 })
         loadData()
-        setNewService({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', category: 'regular', is_active: true })
+        setNewService({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', is_active: true })
     }
 
     const updateService = async (s: PlatformService) => {
@@ -154,6 +212,18 @@ export default function AdminPage() {
         loadData()
     }
 
+    const getThemePreview = (id: string) => {
+        switch (id) {
+            case 'gradient': return 'linear-gradient(135deg, #0f172a, #1e293b)'
+            case 'photo': return 'url(/bg-hero.png)'
+            case 'dark': return '#0a0a0a'
+            case 'blue': return 'linear-gradient(135deg, #0c4a6e, #164e63)'
+            case 'purple': return 'linear-gradient(135deg, #4c1d95, #581c87)'
+            case 'custom': return settings.custom_bg_url ? `url(${settings.custom_bg_url})` : '#333'
+            default: return '#1e293b'
+        }
+    }
+
     // Login
     if (!isAuthenticated) {
         return (
@@ -163,7 +233,6 @@ export default function AdminPage() {
                     <div className="text-center mb-8">
                         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center"><Shield className="w-8 h-8 text-white" /></div>
                         <h2 className="text-2xl font-bold text-white">Super Admin Panel</h2>
-                        <p className="text-gray-400 mt-2">Full control Laundry Terdekat</p>
                     </div>
                     {authError && <div className="bg-red-500/20 text-red-300 p-3 rounded-xl mb-4 text-sm text-center">{authError}</div>}
                     <div className="space-y-4">
@@ -189,12 +258,12 @@ export default function AdminPage() {
                         <Link href="/" className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><ChevronLeft className="w-5 h-5" /></Link>
                         <div className="flex items-center gap-2">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center"><Shield className="w-5 h-5 text-white" /></div>
-                            <div><h1 className="font-bold text-lg text-white">Super Admin</h1><p className="text-xs text-gray-400">Full Control</p></div>
+                            <div><h1 className="font-bold text-lg text-white">Super Admin</h1></div>
                         </div>
                     </div>
                     <button onClick={saveSettings} disabled={saving} className="btn-gradient py-2 px-4 flex items-center gap-2">
                         {saveSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                        {saveSuccess ? 'Tersimpan!' : 'Simpan'}
+                        {saving ? 'Menyimpan...' : saveSuccess ? 'Tersimpan!' : 'Simpan Semua'}
                     </button>
                 </div>
             </header>
@@ -228,7 +297,7 @@ export default function AdminPage() {
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Gift className="w-5 h-5 text-yellow-400" />Promo</h3>
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between"><span className="text-gray-300">Tampilkan Promo</span><button onClick={() => setSettings({ ...settings, promo_enabled: !settings.promo_enabled })} className={`w-12 h-7 rounded-full relative ${settings.promo_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-5 h-5 rounded-full bg-white ${settings.promo_enabled ? 'left-6' : 'left-1'}`} /></button></div>
+                                <div className="flex items-center justify-between"><span className="text-gray-300">Tampilkan Promo</span><button onClick={() => setSettings({ ...settings, promo_enabled: !settings.promo_enabled })} className={`w-12 h-7 rounded-full relative ${settings.promo_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${settings.promo_enabled ? 'left-6' : 'left-1'}`} /></button></div>
                                 <input className="input-glass w-full" value={settings.promo_text} onChange={(e) => setSettings({ ...settings, promo_text: e.target.value })} placeholder="Teks Promo" />
                             </div>
                         </div>
@@ -254,28 +323,27 @@ export default function AdminPage() {
                             <h3 className="font-bold text-lg text-white mb-4">Dashboard Order</h3>
                             <div className="space-y-4">
                                 <div><label className="text-sm text-gray-400 mb-2 block">Judul Halaman</label><input className="input-glass w-full" value={settings.dashboard_title} onChange={(e) => setSettings({ ...settings, dashboard_title: e.target.value })} /></div>
-                                <div><label className="text-sm text-gray-400 mb-2 block">Prefix Outlet</label><input className="input-glass w-full" value={settings.dashboard_merchant_prefix} onChange={(e) => setSettings({ ...settings, dashboard_merchant_prefix: e.target.value })} /><p className="text-xs text-gray-500 mt-1">Hasil: "{settings.dashboard_merchant_prefix} Jl. Sudirman"</p></div>
+                                <div><label className="text-sm text-gray-400 mb-2 block">Prefix Outlet</label><input className="input-glass w-full" value={settings.dashboard_merchant_prefix} onChange={(e) => setSettings({ ...settings, dashboard_merchant_prefix: e.target.value })} /></div>
                             </div>
                         </div>
                         <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" />Layanan (Reguler & Express)</h3>
+                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" />Reguler & Express</h3>
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/30">
                                     <p className="text-blue-400 font-semibold mb-3">Reguler</p>
-                                    <input className="input-glass w-full text-sm mb-2" value={settings.regular_label} onChange={(e) => setSettings({ ...settings, regular_label: e.target.value })} placeholder="Label" />
+                                    <input className="input-glass w-full text-sm mb-2" value={settings.regular_label} onChange={(e) => setSettings({ ...settings, regular_label: e.target.value })} />
                                     <div className="flex gap-2">
-                                        <input className="input-glass flex-1 text-sm" type="number" value={settings.regular_price_per_kg} onChange={(e) => setSettings({ ...settings, regular_price_per_kg: +e.target.value })} placeholder="Harga/kg" />
-                                        <input className="input-glass flex-1 text-sm" value={settings.regular_eta} onChange={(e) => setSettings({ ...settings, regular_eta: e.target.value })} placeholder="ETA" />
+                                        <input className="input-glass flex-1 text-sm" type="number" value={settings.regular_price_per_kg} onChange={(e) => setSettings({ ...settings, regular_price_per_kg: +e.target.value })} />
+                                        <input className="input-glass flex-1 text-sm" value={settings.regular_eta} onChange={(e) => setSettings({ ...settings, regular_eta: e.target.value })} />
                                     </div>
                                 </div>
                                 <div className="bg-yellow-500/10 p-4 rounded-xl border border-yellow-500/30">
-                                    <div className="flex justify-between items-center mb-3"><p className="text-yellow-400 font-semibold">Express ⚡</p><button onClick={() => setSettings({ ...settings, express_enabled: !settings.express_enabled })} className={`w-10 h-6 rounded-full relative ${settings.express_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-4 h-4 rounded-full bg-white ${settings.express_enabled ? 'left-5' : 'left-1'}`} /></button></div>
-                                    <input className="input-glass w-full text-sm mb-2" value={settings.express_label} onChange={(e) => setSettings({ ...settings, express_label: e.target.value })} placeholder="Label" />
+                                    <div className="flex justify-between items-center mb-3"><p className="text-yellow-400 font-semibold">Express ⚡</p><button onClick={() => setSettings({ ...settings, express_enabled: !settings.express_enabled })} className={`w-10 h-6 rounded-full relative ${settings.express_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.express_enabled ? 'left-5' : 'left-1'}`} /></button></div>
+                                    <input className="input-glass w-full text-sm mb-2" value={settings.express_label} onChange={(e) => setSettings({ ...settings, express_label: e.target.value })} />
                                     <div className="flex gap-2">
-                                        <input className="input-glass flex-1 text-sm" type="number" value={settings.express_price_per_kg} onChange={(e) => setSettings({ ...settings, express_price_per_kg: +e.target.value })} placeholder="Harga/kg" />
-                                        <input className="input-glass flex-1 text-sm" value={settings.express_eta} onChange={(e) => setSettings({ ...settings, express_eta: e.target.value })} placeholder="ETA" />
+                                        <input className="input-glass flex-1 text-sm" type="number" value={settings.express_price_per_kg} onChange={(e) => setSettings({ ...settings, express_price_per_kg: +e.target.value })} />
+                                        <input className="input-glass flex-1 text-sm" value={settings.express_eta} onChange={(e) => setSettings({ ...settings, express_eta: e.target.value })} />
                                     </div>
-                                    <p className="text-xs text-yellow-500/70 mt-2">Satuan Express = 2x harga normal</p>
                                 </div>
                             </div>
                         </div>
@@ -292,7 +360,7 @@ export default function AdminPage() {
                                 <input className="input-glass" placeholder="Icon" value={newService.icon} onChange={(e) => setNewService({ ...newService, icon: e.target.value })} />
                                 <input className="input-glass" type="number" placeholder="Harga" value={newService.price} onChange={(e) => setNewService({ ...newService, price: +e.target.value })} />
                                 <select className="input-glass bg-gray-800 text-white" value={newService.unit_type} onChange={(e) => setNewService({ ...newService, unit_type: e.target.value })}>
-                                    <option value="pcs">Per Pcs</option><option value="kg">Per Kg</option><option value="mtr">Per Meter</option>
+                                    <option value="pcs">Per Pcs</option><option value="kg">Per Kg</option>
                                 </select>
                             </div>
                             <button onClick={addService} className="btn-gradient mt-4 py-2 px-6"><Plus className="w-4 h-4 inline mr-2" />Tambah</button>
@@ -324,7 +392,6 @@ export default function AdminPage() {
                                         )}
                                     </div>
                                 ))}
-                                {services.length === 0 && <p className="text-center text-gray-500 py-8">Belum ada layanan</p>}
                             </div>
                         </div>
                     </div>
@@ -334,39 +401,59 @@ export default function AdminPage() {
                 {activeTab === 'theme' && (
                     <div className="space-y-6">
                         <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Image className="w-5 h-5 text-purple-400" />Background Tema</h3>
+                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Image className="w-5 h-5 text-purple-400" />Pilih Tema</h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {BG_THEMES.map((theme) => (
                                     <button key={theme.id} onClick={() => setSettings({ ...settings, bg_theme: theme.id })} className={`p-4 rounded-2xl border-2 transition ${settings.bg_theme === theme.id ? 'border-purple-500 ring-2 ring-purple-500/30' : 'border-white/10'}`}>
-                                        <div className="w-full h-20 rounded-xl mb-3" style={{ background: theme.preview, backgroundSize: 'cover' }} />
+                                        <div className="w-full h-20 rounded-xl mb-3" style={{ background: getThemePreview(theme.id), backgroundSize: 'cover', backgroundPosition: 'center' }} />
                                         <p className="text-sm font-medium text-white">{theme.name}</p>
                                     </button>
                                 ))}
                             </div>
-                            <p className="text-xs text-gray-500 mt-4">Tema "Foto Laundry" menggunakan gambar profesional sebagai background</p>
                         </div>
+
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-green-400" />Upload Background Custom</h3>
+                            <div className="space-y-4">
+                                <label className="block">
+                                    <div className="flex items-center gap-4 p-4 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:border-white/40 transition">
+                                        <Upload className="w-8 h-8 text-gray-400" />
+                                        <div>
+                                            <p className="text-white font-medium">{uploading ? 'Uploading...' : 'Klik untuk upload gambar'}</p>
+                                            <p className="text-sm text-gray-500">JPG, PNG (Max 5MB)</p>
+                                        </div>
+                                    </div>
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleBgUpload} disabled={uploading} />
+                                </label>
+                                {settings.custom_bg_url && (
+                                    <div className="relative">
+                                        <img src={settings.custom_bg_url} alt="Custom BG" className="w-full h-40 object-cover rounded-xl" />
+                                        <button onClick={() => setSettings({ ...settings, custom_bg_url: '', bg_theme: 'gradient' })} className="absolute top-2 right-2 p-2 bg-red-500 rounded-lg"><X className="w-4 h-4" /></button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4">Preview</h3>
-                            <div className="rounded-2xl overflow-hidden">
-                                <div className="h-40 relative" style={{ background: settings.bg_theme === 'photo' ? 'url(/bg-hero.png)' : settings.bg_theme === 'dark' ? '#0a0a0a' : settings.bg_theme === 'blue' ? 'linear-gradient(135deg, #0c4a6e, #164e63)' : settings.bg_theme === 'purple' ? 'linear-gradient(135deg, #4c1d95, #581c87)' : 'linear-gradient(135deg, #0f172a, #1e293b)', backgroundSize: 'cover' }}>
-                                    {settings.bg_theme === 'photo' && <div className="absolute inset-0 bg-black/50" />}
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="text-center"><p className="text-2xl font-bold text-white">{settings.hero_title}</p><p className="text-sm text-gray-300 mt-1">{settings.hero_subtitle.substring(0, 50)}...</p></div>
-                                    </div>
+                            <div className="rounded-2xl overflow-hidden h-48 relative" style={{ background: getThemePreview(settings.bg_theme), backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                                {(settings.bg_theme === 'photo' || settings.bg_theme === 'custom') && <div className="absolute inset-0 bg-black/50" />}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-center p-4"><p className="text-2xl font-bold text-white">{settings.hero_title}</p><p className="text-sm text-gray-300 mt-2">{settings.hero_subtitle.substring(0, 60)}...</p></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Settings/Color Tab */}
+                {/* Color Settings Tab */}
                 {activeTab === 'settings' && (
                     <div className="space-y-6">
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Palette className="w-5 h-5 text-purple-400" />Warna Tema</h3>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-sm text-gray-400 mb-2 block">Primer</label><div className="flex gap-2"><input type="color" className="w-12 h-12 rounded-xl" value={settings.primary_color} onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })} /><input className="input-glass flex-1" value={settings.primary_color} onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })} /></div></div>
-                                <div><label className="text-sm text-gray-400 mb-2 block">Aksen</label><div className="flex gap-2"><input type="color" className="w-12 h-12 rounded-xl" value={settings.accent_color} onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })} /><input className="input-glass flex-1" value={settings.accent_color} onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })} /></div></div>
+                                <div><label className="text-sm text-gray-400 mb-2 block">Primer</label><div className="flex gap-2"><input type="color" className="w-12 h-12 rounded-xl cursor-pointer" value={settings.primary_color} onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })} /><input className="input-glass flex-1" value={settings.primary_color} onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })} /></div></div>
+                                <div><label className="text-sm text-gray-400 mb-2 block">Aksen</label><div className="flex gap-2"><input type="color" className="w-12 h-12 rounded-xl cursor-pointer" value={settings.accent_color} onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })} /><input className="input-glass flex-1" value={settings.accent_color} onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })} /></div></div>
                             </div>
                         </div>
                         <div className="glass p-6">

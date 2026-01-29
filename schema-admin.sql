@@ -1,7 +1,7 @@
--- Super Admin Schema V2 with Theme Support
+-- Super Admin Schema V3 with Custom Background
 -- Run this in Supabase SQL Editor
 
-drop table if exists public.site_settings;
+drop table if exists public.site_settings cascade;
 
 create table public.site_settings (
   id text primary key default 'main',
@@ -30,11 +30,11 @@ create table public.site_settings (
   express_eta text default '8 jam',
   express_enabled boolean default true,
   bg_theme text default 'gradient',
-  nav_style text default 'floating',
+  custom_bg_url text default '',
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
-drop table if exists public.platform_services;
+drop table if exists public.platform_services cascade;
 
 create table public.platform_services (
   id uuid default uuid_generate_v4() primary key,
@@ -51,16 +51,17 @@ create table public.platform_services (
 
 -- RLS
 alter table public.site_settings enable row level security;
-create policy "readable" on public.site_settings for select using (true);
-create policy "writable" on public.site_settings for all using (true);
+drop policy if exists "Allow all" on public.site_settings;
+create policy "Allow all" on public.site_settings for all using (true) with check (true);
 
 alter table public.platform_services enable row level security;
-create policy "readable" on public.platform_services for select using (true);
-create policy "writable" on public.platform_services for all using (true);
+drop policy if exists "Allow all" on public.platform_services;
+create policy "Allow all" on public.platform_services for all using (true) with check (true);
 
--- Seed
+-- Seed settings
 insert into public.site_settings (id) values ('main') on conflict (id) do nothing;
 
+-- Seed services
 insert into public.platform_services (name, icon, price, unit_type, sort_order) values
   ('Kemeja/Baju', '👕', 5000, 'pcs', 1),
   ('Celana', '👖', 5000, 'pcs', 2),
@@ -71,4 +72,5 @@ insert into public.platform_services (name, icon, price, unit_type, sort_order) 
   ('Dress/Gaun', '👗', 20000, 'pcs', 7),
   ('Sprei', '🛏️', 25000, 'pcs', 8),
   ('Selimut', '🛋️', 30000, 'pcs', 9),
-  ('Handuk', '🏊', 8000, 'pcs', 10);
+  ('Handuk', '🏊', 8000, 'pcs', 10)
+on conflict do nothing;
