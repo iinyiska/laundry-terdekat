@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'export', // Required for Capacitor
+  // Note: For Capacitor APK build, use 'output: export' locally
+  // For Vercel deployment, we use server-side rendering (default)
   images: {
-    unoptimized: true, // Required for static export
+    unoptimized: true,
   },
 };
 
