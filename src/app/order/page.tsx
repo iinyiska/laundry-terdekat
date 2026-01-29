@@ -101,12 +101,24 @@ export default function OrderPage() {
                         const addr = data.address || {}
                         const road = addr.road || addr.pedestrian || ''
                         const houseNumber = addr.house_number || ''
-                        const street = road + (houseNumber ? ' No. ' + houseNumber : '')
+                        const building = addr.building || addr.amenity || ''
+                        const kelurahan = addr.suburb || addr.village || addr.neighbourhood || ''
+                        const city = addr.city || addr.town || addr.county || ''
+
+                        // Format: Kota, Kelurahan, Jalan, No
+                        const parts = []
+                        if (city) parts.push(city)
+                        if (kelurahan) parts.push(kelurahan)
+                        if (road) parts.push(road)
+                        if (houseNumber) parts.push('No. ' + houseNumber)
+                        if (building) parts.push('(' + building + ')')
+
+                        const fullAddress = parts.join(', ') || data.display_name
 
                         setLocation({
-                            address: street || data.display_name?.split(',')[0] || 'Alamat terdeteksi',
-                            kelurahan: addr.suburb || addr.village || addr.neighbourhood || 'Kelurahan',
-                            city: addr.city || addr.town || addr.county || 'Jakarta',
+                            address: fullAddress,
+                            kelurahan: kelurahan || 'Kelurahan',
+                            city: city || 'Kota',
                             lat: pos.coords.latitude,
                             lng: pos.coords.longitude
                         })
@@ -331,7 +343,7 @@ export default function OrderPage() {
                                 {settings.express_enabled && (
                                     <button onClick={() => setServiceSpeed('express')} className={`w-full p-4 rounded-xl border-2 transition flex items-center justify-between ${serviceSpeed === 'express' ? 'border-yellow-500 bg-yellow-500/20' : 'border-white/10'}`}>
                                         <div className="flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" /><div><p className="font-bold text-white">{settings.express_label}</p><p className="text-sm text-gray-400">Estimasi {settings.express_eta}</p></div></div>
-                                        <div className="text-right"><p className="text-lg font-bold text-yellow-400">Rp {settings.express_price_per_kg.toLocaleString()}/kg</p>{orderType === 'satuan' && <p className="text-xs text-yellow-500">Satuan 2x harga</p>}</div>
+                                        <div className="text-right"><p className="text-lg font-bold text-yellow-400">Rp {settings.express_price_per_kg.toLocaleString()}/kg</p></div>
                                     </button>
                                 )}
                             </div>

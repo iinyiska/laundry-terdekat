@@ -152,7 +152,7 @@ export default function RegisterPage() {
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                             <input
                                 type="text"
-                                className="input-glass w-full pl-12"
+                                className="input-glass w-full pl-14"
                                 placeholder="Nama Lengkap"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -164,7 +164,7 @@ export default function RegisterPage() {
                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                             <input
                                 type="email"
-                                className="input-glass w-full pl-12"
+                                className="input-glass w-full pl-14"
                                 placeholder="Email"
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -176,7 +176,7 @@ export default function RegisterPage() {
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                             <input
                                 type={showPassword ? 'text' : 'password'}
-                                className="input-glass w-full pl-12 pr-12"
+                                className="input-glass w-full pl-14 pr-12"
                                 placeholder="Password"
                                 value={formData.password}
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
