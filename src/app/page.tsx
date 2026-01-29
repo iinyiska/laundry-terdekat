@@ -61,8 +61,23 @@ export default function Home() {
   }, [])
 
   const loadSettings = async () => {
-    const { data } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
-    if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
+    // Try localStorage first (set by admin panel)
+    const localSettings = localStorage.getItem('laundry_settings')
+    if (localSettings) {
+      try {
+        const parsed = JSON.parse(localSettings)
+        setSettings({ ...DEFAULT_SETTINGS, ...parsed })
+      } catch { }
+    }
+
+    // Then try Supabase (will override if successful)
+    try {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
+      if (data) {
+        setSettings({ ...DEFAULT_SETTINGS, ...data })
+        localStorage.setItem('laundry_settings', JSON.stringify(data))
+      }
+    } catch { }
   }
 
   const getLocation = () => {

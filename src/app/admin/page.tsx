@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Lock, Check, X, Home, FileText, Zap, Image, Layout, Upload, RefreshCw } from 'lucide-react'
+import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Lock, Check, X, Home, FileText, Zap, Image, Layout, Upload, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 const ADMIN_PASSWORD = 'admin123laundry'
@@ -74,28 +74,25 @@ const DEFAULT_SETTINGS: SiteSettings = {
 }
 
 const BG_THEMES = [
-    { id: 'gradient', name: 'Gradient Modern' },
-    { id: 'photo', name: 'Foto Default' },
-    { id: 'dark', name: 'Dark Minimal' },
-    { id: 'blue', name: 'Ocean Blue' },
-    { id: 'purple', name: 'Royal Purple' },
-    { id: 'custom', name: 'Custom Upload' },
+    { id: 'gradient', name: 'Gradient Modern', preview: 'linear-gradient(135deg, #0f172a, #1e293b)' },
+    { id: 'dark', name: 'Dark Minimal', preview: '#0a0a0a' },
+    { id: 'blue', name: 'Ocean Blue', preview: 'linear-gradient(135deg, #0c4a6e, #164e63)' },
+    { id: 'purple', name: 'Royal Purple', preview: 'linear-gradient(135deg, #4c1d95, #581c87)' },
+    { id: 'custom', name: 'Custom Upload', preview: '' },
 ]
 
 export default function AdminPage() {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [password, setPassword] = useState('')
     const [authError, setAuthError] = useState('')
-    const [activeTab, setActiveTab] = useState<'home' | 'content' | 'services' | 'theme' | 'settings'>('home')
+    const [activeTab, setActiveTab] = useState<'home' | 'content' | 'services' | 'theme' | 'settings'>('theme')
     const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     const [services, setServices] = useState<PlatformService[]>([])
     const [editingService, setEditingService] = useState<PlatformService | null>(null)
     const [newService, setNewService] = useState<Partial<PlatformService>>({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', is_active: true })
     const [saving, setSaving] = useState(false)
-    const [saveSuccess, setSaveSuccess] = useState(false)
+    const [status, setStatus] = useState({ type: '', msg: '' })
     const [uploading, setUploading] = useState(false)
-    const [uploadError, setUploadError] = useState('')
-    const [debugMsg, setDebugMsg] = useState('')
     const fileInputRef = useRef<HTMLInputElement>(null)
     const supabase = createClient()
 
@@ -116,159 +113,157 @@ export default function AdminPage() {
         }
     }
 
-    const loadData = async () => {
-        setDebugMsg('Loading data...')
-        const { data: s, error: settingsErr } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
-        if (settingsErr) {
-            setDebugMsg('DB Error: ' + settingsErr.message + ' - Jalankan schema-complete.sql di Supabase!')
-            console.error('Settings error:', settingsErr)
-        } else if (s) {
-            setSettings({ ...DEFAULT_SETTINGS, ...s })
-            setDebugMsg('Data loaded. bg_theme: ' + (s.bg_theme || 'default'))
+    const showStatus = (type: 'success' | 'error' | 'info', msg: string) => {
+        setStatus({ type, msg })
+        if (type === 'success') {
+            setTimeout(() => setStatus({ type: '', msg: '' }), 3000)
         }
-        const { data: svc } = await supabase.from('platform_services').select('*').order('sort_order')
-        if (svc) setServices(svc)
+    }
+
+    const loadData = async () => {
+        showStatus('info', 'Loading data...')
+
+        // Try localStorage first
+        const localSettings = localStorage.getItem('laundry_settings')
+        if (localSettings) {
+            try {
+                const parsed = JSON.parse(localSettings)
+                setSettings({ ...DEFAULT_SETTINGS, ...parsed })
+                showStatus('info', 'Loaded from local storage')
+            } catch { }
+        }
+
+        // Then try Supabase
+        try {
+            const { data: s, error } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
+            if (error) {
+                showStatus('error', 'Database error: ' + error.message + '. Using local storage.')
+            } else if (s) {
+                setSettings({ ...DEFAULT_SETTINGS, ...s })
+                localStorage.setItem('laundry_settings', JSON.stringify(s))
+                showStatus('success', 'Data loaded from database')
+            }
+        } catch (err: any) {
+            showStatus('error', 'Failed to connect: ' + err.message)
+        }
+
+        // Load services
+        try {
+            const { data: svc } = await supabase.from('platform_services').select('*').order('sort_order')
+            if (svc) setServices(svc)
+        } catch { }
     }
 
     const saveSettings = async () => {
         setSaving(true)
-        try {
-            // First check if record exists
-            const { data: existing } = await supabase.from('site_settings').select('id').eq('id', 'main').single()
+        showStatus('info', 'Saving...')
 
-            let error
-            if (existing) {
-                // Update existing
-                const result = await supabase
-                    .from('site_settings')
-                    .update({
-                        ...settings,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', 'main')
-                error = result.error
-            } else {
-                // Insert new
-                const result = await supabase
-                    .from('site_settings')
-                    .insert({
-                        id: 'main',
-                        ...settings,
-                        updated_at: new Date().toISOString()
-                    })
-                error = result.error
-            }
+        // Always save to localStorage first
+        localStorage.setItem('laundry_settings', JSON.stringify(settings))
+
+        // Try Supabase
+        try {
+            const { error } = await supabase.from('site_settings').upsert({
+                id: 'main',
+                ...settings,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
 
             if (error) {
-                console.error('Save error:', error)
-                alert('Gagal menyimpan: ' + error.message)
+                showStatus('error', 'DB save failed: ' + error.message + '. Saved locally.')
             } else {
-                setSaveSuccess(true)
-                setTimeout(() => setSaveSuccess(false), 2000)
+                showStatus('success', '✅ Saved to database!')
             }
         } catch (err: any) {
-            console.error('Save error:', err)
-            alert('Gagal menyimpan: ' + err.message)
+            showStatus('error', 'Error: ' + err.message + '. Saved locally.')
         }
+
         setSaving(false)
+    }
+
+    const selectTheme = async (themeId: string) => {
+        const newSettings = { ...settings, bg_theme: themeId }
+        setSettings(newSettings)
+
+        // Save to localStorage immediately
+        localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
+        showStatus('info', 'Saving theme: ' + themeId + '...')
+
+        // Try Supabase
+        try {
+            const { error } = await supabase.from('site_settings').upsert({
+                id: 'main',
+                bg_theme: themeId,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+
+            if (error) {
+                showStatus('error', 'DB error: ' + error.message + '. Saved locally.')
+            } else {
+                showStatus('success', '✅ Theme saved: ' + themeId)
+            }
+        } catch (err: any) {
+            showStatus('error', 'Error: ' + err.message + '. Saved locally.')
+        }
     }
 
     const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        // Validate file
         if (!file.type.startsWith('image/')) {
-            setUploadError('File harus berupa gambar')
+            showStatus('error', 'File harus berupa gambar')
             return
         }
         if (file.size > 5 * 1024 * 1024) {
-            setUploadError('Ukuran file maksimal 5MB')
+            showStatus('error', 'Maksimal 5MB')
             return
         }
 
         setUploading(true)
-        setUploadError('')
+        showStatus('info', 'Uploading...')
 
-        // Convert to base64 - this way we don't need storage bucket
         const reader = new FileReader()
         reader.onload = async () => {
             const base64 = reader.result as string
             const newSettings = { ...settings, custom_bg_url: base64, bg_theme: 'custom' }
             setSettings(newSettings)
 
-            // Save immediately
-            try {
-                const { data: existing } = await supabase.from('site_settings').select('id').eq('id', 'main').single()
+            // Save to localStorage
+            localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
 
-                if (existing) {
-                    await supabase.from('site_settings').update({
-                        custom_bg_url: base64,
-                        bg_theme: 'custom',
-                        updated_at: new Date().toISOString()
-                    }).eq('id', 'main')
+            // Try Supabase
+            try {
+                const { error } = await supabase.from('site_settings').upsert({
+                    id: 'main',
+                    custom_bg_url: base64,
+                    bg_theme: 'custom',
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' })
+
+                if (error) {
+                    showStatus('error', 'DB error: ' + error.message + '. Saved locally.')
                 } else {
-                    await supabase.from('site_settings').insert({
-                        id: 'main',
-                        custom_bg_url: base64,
-                        bg_theme: 'custom',
-                        updated_at: new Date().toISOString()
-                    })
+                    showStatus('success', '✅ Background uploaded!')
                 }
-                setSaveSuccess(true)
-                setTimeout(() => setSaveSuccess(false), 2000)
-            } catch (err) {
-                console.error('Upload save error:', err)
+            } catch (err: any) {
+                showStatus('error', 'Error: ' + err.message + '. Saved locally.')
             }
 
             setUploading(false)
         }
         reader.onerror = () => {
-            setUploadError('Gagal membaca file')
+            showStatus('error', 'Failed to read file')
             setUploading(false)
         }
         reader.readAsDataURL(file)
     }
 
-    const removeCustomBg = async () => {
+    const removeCustomBg = () => {
         const newSettings = { ...settings, custom_bg_url: '', bg_theme: 'gradient' }
         setSettings(newSettings)
-
-        try {
-            await supabase.from('site_settings').update({
-                custom_bg_url: '',
-                bg_theme: 'gradient',
-                updated_at: new Date().toISOString()
-            }).eq('id', 'main')
-        } catch (err) {
-            console.error('Remove bg error:', err)
-        }
-    }
-
-    const selectTheme = async (themeId: string) => {
-        const newSettings = { ...settings, bg_theme: themeId }
-        setSettings(newSettings)
-        setDebugMsg('Saving theme: ' + themeId)
-
-        // Auto-save theme selection
-        try {
-            const { error } = await supabase.from('site_settings').update({
-                bg_theme: themeId,
-                updated_at: new Date().toISOString()
-            }).eq('id', 'main')
-
-            if (error) {
-                setDebugMsg('❌ Save failed: ' + error.message)
-                console.error('Theme save error:', error)
-            } else {
-                setDebugMsg('✅ Theme saved: ' + themeId)
-                setSaveSuccess(true)
-                setTimeout(() => setSaveSuccess(false), 1500)
-            }
-        } catch (err: any) {
-            setDebugMsg('❌ Error: ' + err.message)
-            console.error('Theme save error:', err)
-        }
+        localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
+        selectTheme('gradient')
     }
 
     const addService = async () => {
@@ -293,18 +288,6 @@ export default function AdminPage() {
     const toggleActive = async (s: PlatformService) => {
         await supabase.from('platform_services').update({ is_active: !s.is_active }).eq('id', s.id)
         loadData()
-    }
-
-    const getThemePreview = (id: string) => {
-        switch (id) {
-            case 'gradient': return 'linear-gradient(135deg, #0f172a, #1e293b)'
-            case 'photo': return 'url(/bg-hero.png)'
-            case 'dark': return '#0a0a0a'
-            case 'blue': return 'linear-gradient(135deg, #0c4a6e, #164e63)'
-            case 'purple': return 'linear-gradient(135deg, #4c1d95, #581c87)'
-            case 'custom': return settings.custom_bg_url ? `url(${settings.custom_bg_url})` : '#333'
-            default: return '#1e293b'
-        }
     }
 
     // Login
@@ -335,7 +318,7 @@ export default function AdminPage() {
             <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
 
             {/* Header */}
-            <header className="glass-bright sticky top-0 z-40 px-4 py-4 mb-6">
+            <header className="glass-bright sticky top-0 z-40 px-4 py-4 mb-4">
                 <div className="max-w-5xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <Link href="/" className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><ChevronLeft className="w-5 h-5" /></Link>
@@ -347,18 +330,22 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2">
                         <button onClick={loadData} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><RefreshCw className="w-5 h-5" /></button>
                         <button onClick={saveSettings} disabled={saving} className="btn-gradient py-2 px-4 flex items-center gap-2">
-                            {saveSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                            {saving ? 'Menyimpan...' : saveSuccess ? 'Tersimpan!' : 'Simpan'}
+                            {saving ? 'Saving...' : <><Save className="w-4 h-4" />Simpan</>}
                         </button>
                     </div>
                 </div>
             </header>
 
-            {/* Debug Message */}
-            {debugMsg && (
+            {/* Status Message */}
+            {status.msg && (
                 <div className="px-4 max-w-5xl mx-auto mb-4">
-                    <div className={`p-3 rounded-xl text-sm ${debugMsg.includes('❌') || debugMsg.includes('Error') ? 'bg-red-500/20 text-red-300' : debugMsg.includes('✅') ? 'bg-green-500/20 text-green-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                        {debugMsg}
+                    <div className={`p-4 rounded-xl flex items-center gap-3 ${status.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                            status.type === 'success' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                                'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                        }`}>
+                        {status.type === 'error' && <AlertCircle className="w-5 h-5" />}
+                        {status.type === 'success' && <Check className="w-5 h-5" />}
+                        <span>{status.msg}</span>
                     </div>
                 </div>
             )}
@@ -367,10 +354,10 @@ export default function AdminPage() {
                 {/* Tabs */}
                 <div className="glass p-2 flex gap-2 mb-6 overflow-x-auto">
                     {[
+                        { id: 'theme', label: 'Tema', icon: Layout },
                         { id: 'home', label: 'Beranda', icon: Home },
                         { id: 'content', label: 'Konten', icon: FileText },
                         { id: 'services', label: 'Layanan', icon: Package },
-                        { id: 'theme', label: 'Tema', icon: Layout },
                         { id: 'settings', label: 'Warna', icon: Palette },
                     ].map((tab) => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-3 px-4 rounded-xl font-medium transition flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
@@ -378,6 +365,102 @@ export default function AdminPage() {
                         </button>
                     ))}
                 </div>
+
+                {/* Theme Tab - FIRST TAB NOW */}
+                {activeTab === 'theme' && (
+                    <div className="space-y-6">
+                        {/* Upload Section */}
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-xl text-white mb-4 flex items-center gap-2">
+                                <Upload className="w-6 h-6 text-green-400" />
+                                Upload Background Custom
+                            </h3>
+                            <div className="space-y-4">
+                                <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleBgUpload} />
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploading}
+                                    className="w-full flex items-center justify-center gap-4 p-8 border-2 border-dashed border-white/30 rounded-2xl hover:border-green-500/50 hover:bg-white/5 transition cursor-pointer"
+                                >
+                                    <Upload className={`w-10 h-10 ${uploading ? 'text-gray-500 animate-pulse' : 'text-green-400'}`} />
+                                    <div className="text-left">
+                                        <p className="text-white font-bold text-lg">{uploading ? 'Mengupload...' : 'Klik untuk upload gambar'}</p>
+                                        <p className="text-gray-400">JPG, PNG (Max 5MB)</p>
+                                    </div>
+                                </button>
+
+                                {settings.custom_bg_url && (
+                                    <div className="relative rounded-2xl overflow-hidden border-2 border-green-500/30">
+                                        <img src={settings.custom_bg_url} alt="Custom" className="w-full h-48 object-cover" />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition">
+                                            <button onClick={removeCustomBg} className="bg-red-500 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">
+                                                <Trash2 className="w-5 h-5" /> Hapus
+                                            </button>
+                                        </div>
+                                        <div className="absolute top-3 left-3 bg-green-500 text-white text-sm px-3 py-1 rounded-full font-bold">✓ Custom Active</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Theme Options */}
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-xl text-white mb-4 flex items-center gap-2">
+                                <Image className="w-6 h-6 text-purple-400" />
+                                Pilih Tema Background
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                {BG_THEMES.map((theme) => (
+                                    <button
+                                        key={theme.id}
+                                        onClick={() => theme.id !== 'custom' && selectTheme(theme.id)}
+                                        disabled={theme.id === 'custom' && !settings.custom_bg_url}
+                                        className={`p-4 rounded-2xl border-3 transition ${settings.bg_theme === theme.id
+                                                ? 'border-green-500 ring-4 ring-green-500/30 bg-green-500/10'
+                                                : 'border-white/20 hover:border-white/40'
+                                            } ${theme.id === 'custom' && !settings.custom_bg_url ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                    >
+                                        <div
+                                            className="w-full h-24 rounded-xl mb-3"
+                                            style={{
+                                                background: theme.id === 'custom'
+                                                    ? (settings.custom_bg_url ? `url(${settings.custom_bg_url})` : '#333')
+                                                    : theme.preview,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center'
+                                            }}
+                                        />
+                                        <p className="font-bold text-white text-sm">{theme.name}</p>
+                                        {settings.bg_theme === theme.id && <p className="text-green-400 text-xs mt-1 font-bold">✓ AKTIF</p>}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Preview */}
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-xl text-white mb-4">Preview Background</h3>
+                            <div
+                                className="rounded-2xl overflow-hidden h-56 relative"
+                                style={{
+                                    background: settings.bg_theme === 'custom' && settings.custom_bg_url
+                                        ? `url(${settings.custom_bg_url})`
+                                        : BG_THEMES.find(t => t.id === settings.bg_theme)?.preview || BG_THEMES[0].preview,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center'
+                                }}
+                            >
+                                {settings.bg_theme === 'custom' && <div className="absolute inset-0 bg-black/50" />}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-center p-6">
+                                        <p className="text-3xl font-bold text-white mb-2">{settings.hero_title}</p>
+                                        <p className="text-gray-300">{settings.hero_subtitle.substring(0, 80)}...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Home Tab */}
                 {activeTab === 'home' && (
@@ -392,7 +475,7 @@ export default function AdminPage() {
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Gift className="w-5 h-5 text-yellow-400" />Promo</h3>
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between"><span className="text-gray-300">Tampilkan Promo</span><button onClick={() => setSettings({ ...settings, promo_enabled: !settings.promo_enabled })} className={`w-12 h-7 rounded-full relative transition-colors ${settings.promo_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${settings.promo_enabled ? 'left-6' : 'left-1'}`} /></button></div>
+                                <div className="flex items-center justify-between"><span className="text-gray-300">Tampilkan Promo</span><button onClick={() => setSettings({ ...settings, promo_enabled: !settings.promo_enabled })} className={`w-14 h-8 rounded-full relative transition-colors ${settings.promo_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all ${settings.promo_enabled ? 'left-7' : 'left-1'}`} /></button></div>
                                 <input className="input-glass w-full" value={settings.promo_text} onChange={(e) => setSettings({ ...settings, promo_text: e.target.value })} placeholder="Teks Promo" />
                             </div>
                         </div>
@@ -417,7 +500,7 @@ export default function AdminPage() {
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4">Dashboard Order</h3>
                             <div className="space-y-4">
-                                <div><label className="text-sm text-gray-400 mb-2 block">Judul Halaman</label><input className="input-glass w-full" value={settings.dashboard_title} onChange={(e) => setSettings({ ...settings, dashboard_title: e.target.value })} /></div>
+                                <div><label className="text-sm text-gray-400 mb-2 block">Judul</label><input className="input-glass w-full" value={settings.dashboard_title} onChange={(e) => setSettings({ ...settings, dashboard_title: e.target.value })} /></div>
                                 <div><label className="text-sm text-gray-400 mb-2 block">Prefix Outlet</label><input className="input-glass w-full" value={settings.dashboard_merchant_prefix} onChange={(e) => setSettings({ ...settings, dashboard_merchant_prefix: e.target.value })} /></div>
                             </div>
                         </div>
@@ -433,7 +516,7 @@ export default function AdminPage() {
                                     </div>
                                 </div>
                                 <div className="bg-yellow-500/10 p-4 rounded-xl border border-yellow-500/30">
-                                    <div className="flex justify-between items-center mb-3"><p className="text-yellow-400 font-semibold">Express ⚡</p><button onClick={() => setSettings({ ...settings, express_enabled: !settings.express_enabled })} className={`w-10 h-6 rounded-full relative transition-colors ${settings.express_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.express_enabled ? 'left-5' : 'left-1'}`} /></button></div>
+                                    <div className="flex justify-between items-center mb-3"><p className="text-yellow-400 font-semibold">Express ⚡</p><button onClick={() => setSettings({ ...settings, express_enabled: !settings.express_enabled })} className={`w-12 h-7 rounded-full relative transition-colors ${settings.express_enabled ? 'bg-green-500' : 'bg-gray-600'}`}><div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${settings.express_enabled ? 'left-6' : 'left-1'}`} /></button></div>
                                     <input className="input-glass w-full text-sm mb-2" value={settings.express_label} onChange={(e) => setSettings({ ...settings, express_label: e.target.value })} />
                                     <div className="flex gap-2">
                                         <input className="input-glass flex-1 text-sm" type="number" value={settings.express_price_per_kg} onChange={(e) => setSettings({ ...settings, express_price_per_kg: +e.target.value })} />
@@ -487,76 +570,6 @@ export default function AdminPage() {
                                         )}
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Theme Tab */}
-                {activeTab === 'theme' && (
-                    <div className="space-y-6">
-                        {/* Upload Custom Background */}
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-green-400" />Upload Background Custom</h3>
-                            <div className="space-y-4">
-                                <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleBgUpload} />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={uploading}
-                                    className="w-full flex items-center justify-center gap-4 p-6 border-2 border-dashed border-white/20 rounded-xl hover:border-green-500/50 transition cursor-pointer"
-                                >
-                                    <Upload className={`w-8 h-8 ${uploading ? 'text-gray-500 animate-pulse' : 'text-green-400'}`} />
-                                    <div className="text-left">
-                                        <p className="text-white font-medium">{uploading ? 'Mengupload...' : 'Klik untuk upload gambar'}</p>
-                                        <p className="text-sm text-gray-500">JPG, PNG (Max 5MB) - Langsung tersimpan</p>
-                                    </div>
-                                </button>
-                                {uploadError && <p className="text-red-400 text-sm">{uploadError}</p>}
-
-                                {settings.custom_bg_url && (
-                                    <div className="relative rounded-xl overflow-hidden">
-                                        <img src={settings.custom_bg_url} alt="Custom" className="w-full h-40 object-cover" />
-                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition">
-                                            <button onClick={removeCustomBg} className="bg-red-500 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                                                <Trash2 className="w-4 h-4" /> Hapus
-                                            </button>
-                                        </div>
-                                        <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">Custom Active</div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Theme Options */}
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Image className="w-5 h-5 text-purple-400" />Pilih Tema (Auto-save)</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {BG_THEMES.map((theme) => (
-                                    <button
-                                        key={theme.id}
-                                        onClick={() => selectTheme(theme.id)}
-                                        disabled={theme.id === 'custom' && !settings.custom_bg_url}
-                                        className={`p-4 rounded-2xl border-2 transition ${settings.bg_theme === theme.id ? 'border-green-500 ring-2 ring-green-500/30' : 'border-white/10'} ${theme.id === 'custom' && !settings.custom_bg_url ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    >
-                                        <div className="w-full h-20 rounded-xl mb-3" style={{ background: getThemePreview(theme.id), backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                                        <p className="text-sm font-medium text-white">{theme.name}</p>
-                                        {settings.bg_theme === theme.id && <p className="text-xs text-green-400 mt-1">✓ Aktif</p>}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Preview */}
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4">Preview</h3>
-                            <div className="rounded-2xl overflow-hidden h-48 relative" style={{ background: getThemePreview(settings.bg_theme), backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                                {(settings.bg_theme === 'photo' || settings.bg_theme === 'custom') && <div className="absolute inset-0 bg-black/50" />}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="text-center p-4">
-                                        <p className="text-2xl font-bold text-white">{settings.hero_title}</p>
-                                        <p className="text-sm text-gray-300 mt-2">{settings.hero_subtitle.substring(0, 60)}...</p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
