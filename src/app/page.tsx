@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { MapPin, Sparkles, Truck, Clock, Shield, Star, ChevronRight, Zap, Gift, Navigation, Loader2, Settings } from 'lucide-react'
+import { MapPin, Sparkles, Truck, Clock, Shield, Star, ChevronRight, Zap, Gift, Navigation, Loader2 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 type SiteSettings = {
@@ -115,12 +115,7 @@ export default function Home() {
         {needsOverlay && <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-slate-900" />}
       </div>
 
-      {/* Admin Link */}
-      <Link href="/admin" className="fixed top-4 right-4 z-50 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition text-gray-500 hover:text-white">
-        <Settings className="w-5 h-5" />
-      </Link>
-
-      {/* Hero Section */}
+      {/* Hero Section - NO ADMIN LINK */}
       <section className="relative pt-8 px-4 md:pt-16">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex items-center justify-center gap-3 mb-8">
@@ -161,7 +156,7 @@ export default function Home() {
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0"><Zap className="w-10 h-10 text-white" /></div>
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-2xl font-bold text-yellow-300 mb-2">⚡ {settings.express_label}</h3>
-                <p className="text-yellow-100/80">Butuh cepat? Layanan Express selesai dalam {settings.express_eta} dihitung dari waktu penjemputan!</p>
+                <p className="text-yellow-100/80">Butuh cepat? Layanan Express selesai dalam {settings.express_eta}!</p>
               </div>
               <Link href="/order" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold px-8 py-4 rounded-2xl hover:opacity-90 transition">Order Express</Link>
             </div>
