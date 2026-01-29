@@ -2,32 +2,45 @@
 
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { MapPin, ShoppingCart, Plus, Minus, Navigation, Sparkles, ChevronLeft, Shirt, Star, Clock, Truck, Gift, Check, X } from 'lucide-react'
+import { MapPin, ShoppingCart, Plus, Minus, Navigation, ChevronLeft, Star, Clock, Truck, Gift, Check, X, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
-// Default location
-const DEFAULT_CENTER = { lat: -6.1751, lng: 106.8650, address: 'Jakarta, Indonesia' }
+// Default merchants (Laundry Terdekat branding)
+const DEMO_MERCHANTS = [
+    { id: 'demo1', name: 'Laundry Terdekat Jl. Sudirman No. 123', area: 'Menteng, Jakarta Pusat', distance: 0.8, rating: 4.9 },
+    { id: 'demo2', name: 'Laundry Terdekat Jl. Gatot Subroto No. 45', area: 'Setiabudi, Jakarta Selatan', distance: 1.2, rating: 4.7 },
+    { id: 'demo3', name: 'Laundry Terdekat Jl. Kuningan Barat No. 67', area: 'Kuningan, Jakarta Selatan', distance: 2.1, rating: 4.8 },
+    { id: 'demo4', name: 'Laundry Terdekat Jl. Thamrin No. 88', area: 'Gondangdia, Jakarta Pusat', distance: 2.5, rating: 4.6 },
+]
 
-// Laundry item types for detailed input
-const LAUNDRY_ITEMS = [
-    { id: 'shirt', name: 'Kemeja/Baju', icon: '👕', price: 5000 },
-    { id: 'pants', name: 'Celana', icon: '👖', price: 5000 },
-    { id: 'tshirt', name: 'Kaos', icon: '🎽', price: 4000 },
-    { id: 'underwear', name: 'Pakaian Dalam', icon: '🩲', price: 3000 },
-    { id: 'socks', name: 'Kaos Kaki (pair)', icon: '🧦', price: 2000 },
-    { id: 'jacket', name: 'Jaket/Sweater', icon: '🧥', price: 15000 },
-    { id: 'dress', name: 'Dress/Gaun', icon: '👗', price: 20000 },
-    { id: 'bedsheet', name: 'Sprei', icon: '🛏️', price: 25000 },
-    { id: 'blanket', name: 'Selimut', icon: '🛋️', price: 30000 },
-    { id: 'towel', name: 'Handuk', icon: '🏊', price: 8000 },
+// Default Laundry item types
+const DEFAULT_SERVICES = [
+    { id: 'shirt', name: 'Kemeja/Baju', icon: '👕', price: 5000, unit: 'pcs' },
+    { id: 'pants', name: 'Celana', icon: '👖', price: 5000, unit: 'pcs' },
+    { id: 'tshirt', name: 'Kaos', icon: '🎽', price: 4000, unit: 'pcs' },
+    { id: 'underwear', name: 'Pakaian Dalam', icon: '🩲', price: 3000, unit: 'pcs' },
+    { id: 'socks', name: 'Kaos Kaki (pair)', icon: '🧦', price: 2000, unit: 'pcs' },
+    { id: 'jacket', name: 'Jaket/Sweater', icon: '🧥', price: 15000, unit: 'pcs' },
+    { id: 'dress', name: 'Dress/Gaun', icon: '👗', price: 20000, unit: 'pcs' },
+    { id: 'bedsheet', name: 'Sprei', icon: '🛏️', price: 25000, unit: 'pcs' },
+    { id: 'blanket', name: 'Selimut', icon: '🛋️', price: 30000, unit: 'pcs' },
+    { id: 'towel', name: 'Handuk', icon: '🏊', price: 8000, unit: 'pcs' },
 ]
 
 type Merchant = {
     id: string
-    full_name: string
-    address: string
+    name: string
+    area: string
     distance?: number
     rating?: number
+}
+
+type ServiceItem = {
+    id: string
+    name: string
+    icon: string
+    price: number
+    unit: string
 }
 
 type CartItem = {
@@ -37,21 +50,24 @@ type CartItem = {
 }
 
 export default function OrderPage() {
-    const [location, setLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [location, setLocation] = useState<{ city: string; kelurahan: string } | null>(null)
     const [isLocating, setIsLocating] = useState(true)
     const [merchants, setMerchants] = useState<Merchant[]>([])
+    const [services, setServices] = useState<ServiceItem[]>(DEFAULT_SERVICES)
     const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null)
     const [cart, setCart] = useState<CartItem[]>([])
-    const [step, setStep] = useState<'location' | 'merchant' | 'items' | 'confirm'>('location')
+    const [step, setStep] = useState<'merchant' | 'items' | 'confirm'>('merchant')
     const [serviceType, setServiceType] = useState<'kg' | 'piece'>('piece')
     const [kgWeight, setKgWeight] = useState<number>(1)
     const [showDiscount, setShowDiscount] = useState(true)
     const [pickupAddress, setPickupAddress] = useState('')
     const [pickupNotes, setPickupNotes] = useState('')
+    const [orderSuccess, setOrderSuccess] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
         getLocation()
+        loadServices()
     }, [])
 
     const getLocation = () => {
@@ -60,49 +76,52 @@ export default function OrderPage() {
             navigator.geolocation.getCurrentPosition(
                 async (pos) => {
                     const { latitude, longitude } = pos.coords
-                    setLocation({
-                        lat: latitude,
-                        lng: longitude,
-                        address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-                    })
+                    // Reverse geocode to city/kelurahan
+                    try {
+                        const response = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+                        )
+                        const data = await response.json()
+                        const address = data.address || {}
+                        setLocation({
+                            city: address.city || address.town || address.municipality || 'Jakarta',
+                            kelurahan: address.suburb || address.village || address.neighbourhood || 'Kelurahan'
+                        })
+                    } catch {
+                        setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' })
+                    }
                     setIsLocating(false)
-                    fetchMerchants(latitude, longitude)
+                    setMerchants(DEMO_MERCHANTS)
                 },
                 () => {
-                    setLocation(DEFAULT_CENTER)
+                    setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' })
                     setIsLocating(false)
-                    fetchMerchants(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng)
+                    setMerchants(DEMO_MERCHANTS)
                 }
             )
         } else {
-            setLocation(DEFAULT_CENTER)
+            setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' })
             setIsLocating(false)
-            fetchMerchants(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng)
+            setMerchants(DEMO_MERCHANTS)
         }
     }
 
-    const fetchMerchants = async (lat: number, lng: number) => {
+    const loadServices = async () => {
         const { data } = await supabase
-            .from('profiles')
+            .from('platform_services')
             .select('*')
-            .eq('role', 'merchant')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true })
 
         if (data && data.length > 0) {
-            const withDistance = data.map((m: any) => ({
-                ...m,
-                distance: Math.random() * 3 + 0.5, // Mock distance 0.5-3.5km
-                rating: (Math.random() * 1 + 4).toFixed(1) // Mock rating 4.0-5.0
-            })).sort((a: any, b: any) => a.distance - b.distance)
-            setMerchants(withDistance)
-        } else {
-            // Demo merchants if no real data
-            setMerchants([
-                { id: 'demo1', full_name: 'LaundryKu Express', address: 'Jl. Sudirman No. 123', distance: 0.8, rating: 4.9 },
-                { id: 'demo2', full_name: 'Bersih Wangi Laundry', address: 'Jl. Gatot Subroto No. 45', distance: 1.2, rating: 4.7 },
-                { id: 'demo3', full_name: 'Fresh & Clean', address: 'Jl. Kuningan Barat No. 67', distance: 2.1, rating: 4.8 },
-            ])
+            setServices(data.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                icon: s.icon,
+                price: s.price,
+                unit: s.unit_type
+            })))
         }
-        setStep('merchant')
     }
 
     const updateCart = (itemId: string, delta: number) => {
@@ -127,23 +146,62 @@ export default function OrderPage() {
 
     const calculateTotal = () => {
         if (serviceType === 'kg') {
-            return kgWeight * 7000 // Rp 7000/kg
+            return kgWeight * 7000
         }
         return cart.reduce((total, item) => {
-            const laundryItem = LAUNDRY_ITEMS.find(l => l.id === item.itemId)
-            return total + (laundryItem ? laundryItem.price * item.quantity : 0)
+            const service = services.find(s => s.id === item.itemId)
+            return total + (service ? service.price * item.quantity : 0)
         }, 0)
     }
 
-    const getTotalItems = () => {
-        return cart.reduce((sum, item) => sum + item.quantity, 0)
-    }
+    const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0)
 
     const handleConfirmOrder = async () => {
-        alert('🎉 Pesanan berhasil dibuat! Kurir kami akan segera menjemput cucian Anda.')
+        setOrderSuccess(true)
+    }
+
+    const resetOrder = () => {
+        setOrderSuccess(false)
         setCart([])
         setSelectedMerchant(null)
         setStep('merchant')
+        setKgWeight(1)
+        setPickupAddress('')
+        setPickupNotes('')
+    }
+
+    // Order Success Screen
+    if (orderSuccess) {
+        return (
+            <main className="min-h-screen flex items-center justify-center px-4">
+                <div className="fixed inset-0 -z-10 overflow-hidden">
+                    <div className="absolute top-1/4 -left-32 w-96 h-96 bg-green-500/20 rounded-full blur-[120px]"></div>
+                    <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-[120px]"></div>
+                </div>
+                <div className="text-center max-w-md">
+                    <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center floating">
+                        <Check className="w-12 h-12 text-white" />
+                    </div>
+                    <h2 className="text-3xl font-bold text-white mb-3">Pesanan Berhasil! 🎉</h2>
+                    <p className="text-gray-400 mb-6">
+                        Kurir kami akan segera menghubungi Anda untuk menjemput cucian.
+                    </p>
+                    <div className="glass p-4 mb-6 text-left">
+                        <p className="text-sm text-gray-400">Outlet:</p>
+                        <p className="font-semibold text-white">{selectedMerchant?.name}</p>
+                        <p className="text-sm text-gray-500 mt-2">Area: {selectedMerchant?.area}</p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={resetOrder} className="flex-1 glass py-3 rounded-xl font-medium hover:bg-white/10 transition">
+                            Order Lagi
+                        </button>
+                        <Link href="/" className="flex-1 btn-gradient py-3 rounded-xl font-semibold text-center">
+                            Kembali
+                        </Link>
+                    </div>
+                </div>
+            </main>
+        )
     }
 
     return (
@@ -165,7 +223,14 @@ export default function OrderPage() {
                             <MapPin className="w-4 h-4 text-blue-400" />
                         </div>
                         <span className="text-sm font-medium truncate max-w-[200px]">
-                            {isLocating ? 'Mencari...' : location?.address}
+                            {isLocating ? (
+                                <span className="flex items-center gap-2">
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Mencari...
+                                </span>
+                            ) : (
+                                `${location?.kelurahan}, ${location?.city}`
+                            )}
                         </span>
                     </div>
                     <button onClick={getLocation} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition">
@@ -194,8 +259,10 @@ export default function OrderPage() {
                 {/* Step: Select Merchant */}
                 {step === 'merchant' && (
                     <div className="space-y-4">
-                        <h2 className="text-2xl font-bold gradient-text">Pilih Laundry Terdekat</h2>
-                        <p className="text-gray-400 text-sm">Pilih mitra laundry terpercaya di sekitarmu</p>
+                        <h2 className="text-2xl font-bold gradient-text">Pilih Outlet Terdekat</h2>
+                        <p className="text-gray-400 text-sm">
+                            Semua outlet adalah mitra resmi Laundry Terdekat dengan kualitas terjamin
+                        </p>
 
                         <div className="space-y-4 mt-6">
                             {merchants.map(merchant => (
@@ -210,13 +277,13 @@ export default function OrderPage() {
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="font-bold text-lg text-white">{merchant.full_name}</h3>
-                                                <div className="flex items-center gap-1 bg-yellow-500/20 px-2 py-0.5 rounded-full">
-                                                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                                                    <span className="text-xs font-semibold text-yellow-300">{merchant.rating}</span>
-                                                </div>
+                                                <h3 className="font-bold text-lg text-white">{merchant.name}</h3>
                                             </div>
-                                            <p className="text-sm text-gray-400 mb-3">{merchant.address}</p>
+                                            <div className="flex items-center gap-1 mb-2">
+                                                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                                                <span className="text-sm font-semibold text-yellow-300">{merchant.rating}</span>
+                                            </div>
+                                            <p className="text-sm text-gray-400 mb-3">📍 {merchant.area}</p>
                                             <div className="flex items-center gap-4 text-xs">
                                                 <span className="flex items-center gap-1 text-green-400">
                                                     <MapPin className="w-3 h-3" />
@@ -224,11 +291,11 @@ export default function OrderPage() {
                                                 </span>
                                                 <span className="flex items-center gap-1 text-blue-400">
                                                     <Truck className="w-3 h-3" />
-                                                    Antar Jemput
+                                                    Antar Jemput Gratis
                                                 </span>
                                                 <span className="flex items-center gap-1 text-purple-400">
                                                     <Clock className="w-3 h-3" />
-                                                    24 Jam
+                                                    Est. 24 Jam
                                                 </span>
                                             </div>
                                         </div>
@@ -248,7 +315,7 @@ export default function OrderPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-2xl font-bold gradient-text">Detail Cucian</h2>
-                                <p className="text-gray-400 text-sm mt-1">{selectedMerchant.full_name}</p>
+                                <p className="text-gray-400 text-sm mt-1">{selectedMerchant.name}</p>
                             </div>
                             <button
                                 onClick={() => setStep('merchant')}
@@ -275,7 +342,6 @@ export default function OrderPage() {
                         </div>
 
                         {serviceType === 'kg' ? (
-                            /* Kilogram Mode */
                             <div className="glass p-6">
                                 <h3 className="font-semibold text-white mb-4">Perkiraan Berat</h3>
                                 <div className="flex items-center justify-center gap-6">
@@ -301,9 +367,8 @@ export default function OrderPage() {
                                 </p>
                             </div>
                         ) : (
-                            /* Piece Mode */
                             <div className="space-y-3">
-                                {LAUNDRY_ITEMS.map(item => {
+                                {services.map(item => {
                                     const cartItem = cart.find(c => c.itemId === item.id)
                                     const qty = cartItem?.quantity || 0
                                     return (
@@ -312,7 +377,7 @@ export default function OrderPage() {
                                                 <span className="text-3xl">{item.icon}</span>
                                                 <div className="flex-1">
                                                     <h4 className="font-medium text-white">{item.name}</h4>
-                                                    <p className="text-sm text-blue-400">Rp {item.price.toLocaleString('id-ID')}</p>
+                                                    <p className="text-sm text-blue-400">Rp {item.price.toLocaleString('id-ID')} / {item.unit}</p>
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     {qty > 0 && (
@@ -337,7 +402,7 @@ export default function OrderPage() {
                                             {qty > 0 && (
                                                 <input
                                                     type="text"
-                                                    placeholder="Catatan: warna, kondisi (opsional)"
+                                                    placeholder="Catatan: warna, kondisi, dll (opsional)"
                                                     className="input-glass w-full mt-3 text-sm"
                                                     value={cartItem?.notes || ''}
                                                     onChange={(e) => updateItemNotes(item.id, e.target.value)}
@@ -379,23 +444,26 @@ export default function OrderPage() {
                         <h2 className="text-2xl font-bold gradient-text">Konfirmasi Pesanan</h2>
 
                         <div className="glass p-5">
-                            <h3 className="font-semibold mb-3">Rincian Cucian</h3>
+                            <p className="text-sm text-gray-400 mb-2">Outlet:</p>
+                            <p className="font-semibold text-white mb-4">{selectedMerchant?.name}</p>
+
+                            <h3 className="font-semibold mb-3 text-gray-300">Rincian Cucian:</h3>
                             {serviceType === 'kg' ? (
-                                <div className="flex justify-between">
+                                <div className="flex justify-between py-2 border-b border-white/10">
                                     <span>Cuci Kiloan ({kgWeight} kg)</span>
                                     <span className="font-semibold">Rp {(kgWeight * 7000).toLocaleString('id-ID')}</span>
                                 </div>
                             ) : (
                                 cart.map(item => {
-                                    const laundryItem = LAUNDRY_ITEMS.find(l => l.id === item.itemId)
-                                    if (!laundryItem) return null
+                                    const service = services.find(s => s.id === item.itemId)
+                                    if (!service) return null
                                     return (
-                                        <div key={item.itemId} className="flex justify-between py-2 border-b border-white/10">
-                                            <div>
-                                                <span>{laundryItem.icon} {laundryItem.name} x{item.quantity}</span>
-                                                {item.notes && <p className="text-xs text-gray-400">📝 {item.notes}</p>}
+                                        <div key={item.itemId} className="py-2 border-b border-white/10">
+                                            <div className="flex justify-between">
+                                                <span>{service.icon} {service.name} x{item.quantity}</span>
+                                                <span className="font-medium">Rp {(service.price * item.quantity).toLocaleString('id-ID')}</span>
                                             </div>
-                                            <span className="font-medium">Rp {(laundryItem.price * item.quantity).toLocaleString('id-ID')}</span>
+                                            {item.notes && <p className="text-xs text-gray-400 mt-1">📝 {item.notes}</p>}
                                         </div>
                                     )
                                 })
@@ -405,6 +473,14 @@ export default function OrderPage() {
                                 <span className="gradient-text">Rp {calculateTotal().toLocaleString('id-ID')}</span>
                             </div>
                         </div>
+
+                        {pickupAddress && (
+                            <div className="glass p-4">
+                                <p className="text-sm text-gray-400">Alamat Jemput:</p>
+                                <p className="text-white">{pickupAddress}</p>
+                                {pickupNotes && <p className="text-sm text-gray-500 mt-1">Catatan: {pickupNotes}</p>}
+                            </div>
+                        )}
 
                         <button onClick={handleConfirmOrder} className="btn-gradient w-full text-lg py-4">
                             <Check className="w-5 h-5 inline mr-2" />
