@@ -20,57 +20,44 @@ export function useDeepLinkAuth() {
         try {
             const { App } = await import('@capacitor/app')
 
+            // Helper to handle URL
+            const handleAuthUrl = async (urlString: string) => {
+                const url = new URL(urlString.replace('laundryterdekat://', 'https://'))
+                const accessToken = url.searchParams.get('access_token')
+                const refreshToken = url.searchParams.get('refresh_token')
+
+                if (accessToken && refreshToken) {
+                    try {
+                        const { error } = await supabase.auth.setSession({
+                            access_token: decodeURIComponent(accessToken),
+                            refresh_token: decodeURIComponent(refreshToken)
+                        })
+
+                        if (!error) {
+                            alert('Login Sukses! Halaman akan direfresh.')
+                            window.location.reload()
+                        } else {
+                            alert('Login Gagal Set Session: ' + error.message)
+                        }
+                    } catch (e: any) {
+                        alert('Error Logic Session: ' + e.message)
+                    }
+                }
+            }
+
             // Listen for app URL open events (deep links)
             App.addListener('appUrlOpen', async (event) => {
-                console.log('Deep link received:', event.url)
-
-                // Parse the deep link URL
                 if (event.url.startsWith('laundryterdekat://auth')) {
-                    const url = new URL(event.url.replace('laundryterdekat://', 'https://'))
-                    const accessToken = url.searchParams.get('access_token')
-                    const refreshToken = url.searchParams.get('refresh_token')
-
-                    if (accessToken && refreshToken) {
-                        try {
-                            // Set the session with tokens from deep link
-                            const { error } = await supabase.auth.setSession({
-                                access_token: decodeURIComponent(accessToken),
-                                refresh_token: decodeURIComponent(refreshToken)
-                            })
-
-                            if (!error) {
-                                console.log('Session set successfully from deep link')
-                                // Refresh the page to show logged in state
-                                window.location.reload()
-                            } else {
-                                console.error('Failed to set session:', error)
-                            }
-                        } catch (e) {
-                            console.error('Error setting session from deep link:', e)
-                        }
-                    }
+                    await handleAuthUrl(event.url)
                 }
             })
 
             // Also check initial URL when app opens
             const result = await App.getLaunchUrl()
             if (result?.url && result.url.startsWith('laundryterdekat://auth')) {
-                const url = new URL(result.url.replace('laundryterdekat://', 'https://'))
-                const accessToken = url.searchParams.get('access_token')
-                const refreshToken = url.searchParams.get('refresh_token')
-
-                if (accessToken && refreshToken) {
-                    const { error } = await supabase.auth.setSession({
-                        access_token: decodeURIComponent(accessToken),
-                        refresh_token: decodeURIComponent(refreshToken)
-                    })
-
-                    if (!error) {
-                        console.log('Session set from launch URL')
-                        window.location.reload()
-                    }
-                }
+                await handleAuthUrl(result.url)
             }
+
         } catch (e) {
             console.error('Failed to setup deep link listener:', e)
         }
