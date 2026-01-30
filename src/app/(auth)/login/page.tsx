@@ -50,8 +50,8 @@ export default function LoginPage() {
         setGoogleLoading(true)
         setError(null)
 
-        // Always use production URL for redirect
-        const redirectUrl = 'https://laundry-terdekat.vercel.app'
+        // Use auth callback page for redirect
+        const redirectUrl = 'https://laundry-terdekat.vercel.app/auth/callback'
 
         // Check if we're in a Capacitor/native app context
         const isNativeApp = typeof window !== 'undefined' &&
@@ -82,16 +82,26 @@ export default function LoginPage() {
         if (isNativeApp && data?.url) {
             try {
                 const { Browser } = await import('@capacitor/browser')
+
+                // Listen for browser close to check session
+                Browser.addListener('browserFinished', async () => {
+                    // Check if user is now logged in
+                    const { data: { session } } = await supabase.auth.getSession()
+                    if (session) {
+                        router.push('/')
+                    }
+                    setGoogleLoading(false)
+                })
+
                 await Browser.open({
                     url: data.url,
                     presentationStyle: 'popover',
                     toolbarColor: '#1e293b'
                 })
             } catch (e) {
-                // Fallback - redirect in same window (will load in WebView)
+                // Fallback - redirect in same window
                 window.location.href = data.url
             }
-            setGoogleLoading(false)
         }
         // For web, the default redirect will happen automatically
     }

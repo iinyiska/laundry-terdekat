@@ -68,6 +68,28 @@ export default function Home() {
   }, [])
 
   const checkUser = async () => {
+    // First check if we have OAuth tokens from callback (for Capacitor)
+    const storedTokens = localStorage.getItem('oauth_tokens')
+    if (storedTokens) {
+      try {
+        const parsed = JSON.parse(storedTokens)
+        // Only use if recent (within 5 minutes)
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          const { error } = await supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token
+          })
+          if (!error) {
+            localStorage.removeItem('oauth_tokens')
+          }
+        } else {
+          localStorage.removeItem('oauth_tokens')
+        }
+      } catch (e) {
+        localStorage.removeItem('oauth_tokens')
+      }
+    }
+
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
     setUserLoading(false)

@@ -2,20 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Gift, Sparkles, ChevronLeft, Loader2 } from 'lucide-react'
 
 export default function RegisterPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const router = useRouter()
     const supabase = createClient()
 
     const handleGoogleSignIn = async () => {
         setLoading(true)
         setError(null)
 
-        // Always use production URL for redirect
-        const redirectUrl = 'https://laundry-terdekat.vercel.app'
+        // Use auth callback page for redirect
+        const redirectUrl = 'https://laundry-terdekat.vercel.app/auth/callback'
 
         // Check if we're in a Capacitor/native app context
         const isNativeApp = typeof window !== 'undefined' &&
@@ -46,16 +48,24 @@ export default function RegisterPage() {
         if (isNativeApp && data?.url) {
             try {
                 const { Browser } = await import('@capacitor/browser')
+
+                // Listen for browser close to check session
+                Browser.addListener('browserFinished', async () => {
+                    const { data: { session } } = await supabase.auth.getSession()
+                    if (session) {
+                        router.push('/')
+                    }
+                    setLoading(false)
+                })
+
                 await Browser.open({
                     url: data.url,
                     presentationStyle: 'popover',
                     toolbarColor: '#1e293b'
                 })
             } catch (e) {
-                // Fallback - redirect in same window
                 window.location.href = data.url
             }
-            setLoading(false)
         }
     }
 
