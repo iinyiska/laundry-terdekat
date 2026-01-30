@@ -220,61 +220,50 @@ export default function AdminPage() {
             return
         }
 
+        if (file.size > 5 * 1024 * 1024) {
+            showStatus('error', 'Maksimal 5MB')
+            return
+        }
+
         setUploading(true)
-        showStatus('info', 'Processing image...')
+        showStatus('info', 'Uploading...')
 
-        // Resize image
         const reader = new FileReader()
-        reader.onload = async (event) => {
-            const img = document.createElement('img')
-            img.onload = async () => {
-                const canvas = document.createElement('canvas')
-                let width = img.width
-                let height = img.height
+        reader.onload = async () => {
+            const base64 = reader.result as string
+            const newSettings = { ...settings, custom_bg_url: base64, bg_theme: 'custom' }
+            setSettings(newSettings)
 
-                // Max width 800px
-                if (width > 800) {
-                    height = height * (800 / width)
-                    width = 800
+            // Save to localStorage
+            localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
+
+            // Try Supabase
+            try {
+                const { error } = await supabase.from('site_settings').upsert({
+                    id: 'main',
+                    custom_bg_url: base64,
+                    bg_theme: 'custom',
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' })
+
+                if (error) {
+                    console.error('DB Error:', error)
+                    alert('Gagal simpan ke database: ' + error.message + '\n\nPastikan Anda sudah menjalankan script SQL permission!')
+                    showStatus('error', 'DB error: ' + error.message)
+                } else {
+                    alert('✅ Background Berhasil Disimpan ke Database!')
+                    showStatus('success', '✅ Background uploaded!')
                 }
-
-                canvas.width = width
-                canvas.height = height
-                const ctx = canvas.getContext('2d')
-                ctx?.drawImage(img, 0, 0, width, height)
-
-                // Compress to JPEG 0.7
-                const base64 = canvas.toDataURL('image/jpeg', 0.7)
-
-                // Save
-                const newSettings = { ...settings, custom_bg_url: base64, bg_theme: 'custom' }
-                setSettings(newSettings)
-                localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
-
-                try {
-                    const { error } = await supabase.from('site_settings').upsert({
-                        id: 'main',
-                        custom_bg_url: base64,
-                        bg_theme: 'custom',
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'id' })
-
-                    if (error) {
-                        console.error('DB Error:', error)
-                        alert('Gagal simpan ke database: ' + error.message + '\n\nPastikan Anda sudah menjalankan script SQL permission!')
-                        showStatus('error', 'DB error: ' + error.message)
-                    } else {
-                        alert('✅ Background Berhasil Disimpan ke Database!')
-                        showStatus('success', '✅ Background uploaded!')
-                    }
-                } catch (err: any) {
-                    alert('Error: ' + err.message)
-                    showStatus('error', 'Error: ' + err.message)
-                }
-
-                setUploading(false)
+            } catch (err: any) {
+                alert('Error: ' + err.message)
+                showStatus('error', 'Error: ' + err.message)
             }
-            img.src = event.target?.result as string
+
+            setUploading(false)
+        }
+        reader.onerror = () => {
+            showStatus('error', 'Failed to read file')
+            setUploading(false)
         }
         reader.readAsDataURL(file)
     }
