@@ -139,7 +139,7 @@ export default function AdminPage() {
 
         // Then try Supabase
         try {
-            const { data: s, error } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
+            const { data: s, error } = await supabase.from('site_settings').select('*').eq('id', 'site_config').single()
             if (error) {
                 showStatus('error', 'Database error: ' + error.message + '. Using local storage.')
             } else if (s) {
@@ -168,7 +168,7 @@ export default function AdminPage() {
         // Try Supabase
         try {
             const { error } = await supabase.from('site_settings').upsert({
-                id: 'main',
+                id: 'site_config',
                 ...settings,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' })
@@ -196,7 +196,7 @@ export default function AdminPage() {
         // Try Supabase
         try {
             const { error } = await supabase.from('site_settings').upsert({
-                id: 'main',
+                id: 'site_config',
                 bg_theme: themeId,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' })
@@ -240,7 +240,7 @@ export default function AdminPage() {
             // Try Supabase
             try {
                 const { error } = await supabase.from('site_settings').upsert({
-                    id: 'main',
+                    id: 'site_config',
                     custom_bg_url: base64,
                     bg_theme: 'custom',
                     updated_at: new Date().toISOString()
@@ -293,7 +293,7 @@ export default function AdminPage() {
 
             try {
                 const { error } = await supabase.from('site_settings').upsert({
-                    id: 'main',
+                    id: 'site_config',
                     app_logo: base64,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'id' })

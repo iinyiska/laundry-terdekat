@@ -107,7 +107,7 @@ export default function Home() {
 
     // Then try Supabase (will override if successful)
     try {
-      const { data } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 'site_config').single()
       if (data) {
         setSettings({ ...DEFAULT_SETTINGS, ...data })
         localStorage.setItem('laundry_settings', JSON.stringify(data))

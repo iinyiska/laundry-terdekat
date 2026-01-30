@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-    appId: 'com.laundryterdekat.app',
+    appId: 'com.laundry.terdekat',
     appName: 'Laundry Terdekat',
     webDir: 'out',
     server: {
