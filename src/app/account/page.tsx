@@ -166,10 +166,10 @@ export default function AccountPage() {
                         <div>
                             <label className="text-sm text-gray-400 mb-2 block">Nama Lengkap</label>
                             <div className="relative">
-                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                {!fullName && <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />}
                                 <input
                                     type="text"
-                                    className="input-glass w-full pl-12"
+                                    className={`input-glass w-full ${fullName ? 'pl-4' : 'pl-12'}`}
                                     placeholder="Nama lengkap"
                                     value={fullName}
                                     onChange={(e) => setFullName(e.target.value)}
@@ -194,10 +194,10 @@ export default function AccountPage() {
                         <div>
                             <label className="text-sm text-gray-400 mb-2 block">Nomor WhatsApp</label>
                             <div className="relative">
-                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                {!phone && <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />}
                                 <input
                                     type="tel"
-                                    className="input-glass w-full pl-12"
+                                    className={`input-glass w-full ${phone ? 'pl-4' : 'pl-12'}`}
                                     placeholder="08xxxxxxxxxx"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
@@ -208,9 +208,9 @@ export default function AccountPage() {
                         <div>
                             <label className="text-sm text-gray-400 mb-2 block">Alamat Default</label>
                             <div className="relative">
-                                <MapPin className="absolute left-4 top-4 w-5 h-5 text-gray-500" />
+                                {!address && <MapPin className="absolute left-4 top-4 w-5 h-5 text-gray-500" />}
                                 <textarea
-                                    className="input-glass w-full pl-12"
+                                    className={`input-glass w-full ${address ? 'pl-4' : 'pl-12'}`}
                                     rows={3}
                                     placeholder="Alamat lengkap untuk penjemputan"
                                     value={address}
