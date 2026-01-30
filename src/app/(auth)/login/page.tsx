@@ -99,10 +99,22 @@ export default function LoginPage() {
         }
 
         // For web, the default redirect will happen automatically
-        // If isNativeApp is true and skipBrowserRedirect was false, it means the native plugin failed,
-        // and we are now relying on the web flow to open in the system browser.
-        // The user will be redirected to the app via the deep link after successful login.
-        setGoogleLoading(false) // This line was missing for the web flow success path
+        // For native app, we skipped it, so we must open it manually
+        if (isNativeApp && data?.url) {
+            try {
+                const { Browser } = await import('@capacitor/browser')
+                await Browser.open({
+                    url: data.url,
+                    presentationStyle: 'popover',
+                    toolbarColor: '#1e293b'
+                })
+            } catch (e) {
+                // Fallback to standard window open
+                window.location.href = data.url
+            }
+        }
+
+        setGoogleLoading(false)
     }
 
     return (

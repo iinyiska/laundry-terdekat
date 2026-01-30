@@ -62,6 +62,20 @@ export default function RegisterPage() {
             return
         }
 
+        // For native app, open in-app browser manual fallback
+        if (isNativeApp && data?.url) {
+            try {
+                const { Browser } = await import('@capacitor/browser')
+                await Browser.open({
+                    url: data.url,
+                    presentationStyle: 'popover',
+                    toolbarColor: '#1e293b'
+                })
+            } catch (e) {
+                window.location.href = data.url
+            }
+        }
+
         // For native app, open in-app browser if skipBrowserRedirect was true and data.url is available
         // This block is now only for the web fallback if skipBrowserRedirect was true
         if (isNativeApp && data?.url) {
