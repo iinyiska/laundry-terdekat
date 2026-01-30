@@ -1,14 +1,15 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Loader2, CheckCircle, ExternalLink } from 'lucide-react'
+import { Loader2, CheckCircle, Copy, ExternalLink, Check } from 'lucide-react'
 
 function AuthCallbackContent() {
     const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'manual'>('loading')
     const [message, setMessage] = useState('Memproses login...')
-    const [tokens, setTokens] = useState<{ accessToken: string; refreshToken: string } | null>(null)
+    const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
+    const [copied, setCopied] = useState(false)
     const router = useRouter()
     const supabase = createClient()
 
@@ -23,20 +24,8 @@ function AuthCallbackContent() {
             const accessToken = hashParams.get('access_token')
             const refreshToken = hashParams.get('refresh_token')
 
-            // Check if we're in Capacitor in-app browser
-            const isInAppBrowser = navigator.userAgent.includes('wv') ||
-                navigator.userAgent.includes('WebView') ||
-                document.referrer.includes('accounts.google.com')
-
             if (accessToken && refreshToken) {
-                // Save tokens to localStorage so main app can read them
-                localStorage.setItem('oauth_tokens', JSON.stringify({
-                    access_token: accessToken,
-                    refresh_token: refreshToken,
-                    timestamp: Date.now()
-                }))
-
-                // Set session
+                // Set session in this context
                 const { error } = await supabase.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken
@@ -46,60 +35,33 @@ function AuthCallbackContent() {
                     throw error
                 }
 
+                // Create deep link URL for Capacitor app
+                const appDeepLink = `laundryterdekat://auth?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+                setDeepLinkUrl(appDeepLink)
+
                 setStatus('success')
                 setMessage('Login berhasil!')
-                setTokens({ accessToken, refreshToken })
 
-                // If we're in a browser that might be in-app browser, show manual instruction
-                if (typeof window !== 'undefined') {
-                    // Try to close browser automatically (Capacitor)
-                    try {
-                        // This will work if we're in Capacitor context
-                        if ((window as any).Capacitor?.Plugins?.Browser) {
-                            await (window as any).Capacitor.Plugins.Browser.close()
-                        }
-                    } catch (e) {
-                        // Can't close, show manual instruction
-                    }
+                // Try to open deep link automatically
+                setTimeout(() => {
+                    // Try opening the app deep link
+                    window.location.href = appDeepLink
 
-                    // Show manual close button after delay
+                    // After a delay, show manual instructions if still here
                     setTimeout(() => {
                         setStatus('manual')
-                        setMessage('Login berhasil! Silakan tutup tab ini.')
+                        setMessage('Kembali ke Aplikasi')
                     }, 1500)
-                }
+                }, 500)
             } else {
-                // No tokens in URL, check if we have tokens in localStorage
-                const storedTokens = localStorage.getItem('oauth_tokens')
-                if (storedTokens) {
-                    const parsed = JSON.parse(storedTokens)
-                    // Only use if recent (within 5 minutes)
-                    if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-                        const { error } = await supabase.auth.setSession({
-                            access_token: parsed.access_token,
-                            refresh_token: parsed.refresh_token
-                        })
-
-                        if (!error) {
-                            localStorage.removeItem('oauth_tokens')
-                            setStatus('success')
-                            setMessage('Login berhasil!')
-                            setTimeout(() => router.push('/'), 1000)
-                            return
-                        }
-                    }
-                    localStorage.removeItem('oauth_tokens')
-                }
-
-                // Check if session already exists (normal OAuth flow)
-                const { data: { session }, error } = await supabase.auth.getSession()
+                // Check if session already exists
+                const { data: { session } } = await supabase.auth.getSession()
 
                 if (session) {
                     setStatus('success')
                     setMessage('Login berhasil!')
                     setTimeout(() => router.push('/'), 1000)
                 } else {
-                    setMessage('Mengalihkan...')
                     router.push('/login')
                 }
             }
@@ -111,13 +73,27 @@ function AuthCallbackContent() {
         }
     }
 
+    const copyDeepLink = () => {
+        if (deepLinkUrl) {
+            navigator.clipboard.writeText(deepLinkUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        }
+    }
+
+    const openApp = () => {
+        if (deepLinkUrl) {
+            window.location.href = deepLinkUrl
+        }
+    }
+
     return (
         <main className="min-h-screen flex items-center justify-center px-4">
             <div className="fixed inset-0 -z-10">
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" />
             </div>
 
-            <div className="text-center max-w-md">
+            <div className="text-center max-w-md w-full">
                 {status === 'loading' && (
                     <Loader2 className="w-16 h-16 animate-spin text-blue-400 mx-auto mb-4" />
                 )}
@@ -133,18 +109,28 @@ function AuthCallbackContent() {
 
                 {status === 'manual' && (
                     <div className="space-y-4">
-                        <p className="text-gray-400">
-                            Kembali ke aplikasi dan refresh halaman untuk melanjutkan.
+                        <p className="text-gray-400 text-sm">
+                            Tekan tombol di bawah untuk kembali ke aplikasi, atau tutup tab ini dan buka aplikasi secara manual.
                         </p>
-                        <div className="flex flex-col gap-3">
-                            <button
-                                onClick={() => window.close()}
-                                className="bg-green-500 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 mx-auto hover:bg-green-600 transition"
-                            >
-                                <ExternalLink className="w-5 h-5" />
-                                Tutup Tab Ini
-                            </button>
-                        </div>
+
+                        <button
+                            onClick={openApp}
+                            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition"
+                        >
+                            <ExternalLink className="w-5 h-5" />
+                            Buka Aplikasi
+                        </button>
+
+                        <button
+                            onClick={() => window.close()}
+                            className="w-full bg-white/10 text-white font-medium py-3 px-6 rounded-xl hover:bg-white/20 transition"
+                        >
+                            Tutup Tab Ini
+                        </button>
+
+                        <p className="text-gray-500 text-xs mt-6">
+                            Jika aplikasi tidak terbuka otomatis, tutup browser ini dan buka aplikasi Laundry Terdekat.
+                        </p>
                     </div>
                 )}
 
