@@ -34,7 +34,7 @@ export default function RegisterPage() {
                 }
             } catch (err: any) {
                 console.error('Native login failed, falling back to web:', err)
-                // Don't return, allow fallback
+                alert('Debug Native Error: ' + (err.message || JSON.stringify(err)))
             }
         }
 
