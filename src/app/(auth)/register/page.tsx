@@ -19,8 +19,7 @@ export default function RegisterPage() {
 
         // Check if we're in a Capacitor/native app context
         const isNativeApp = typeof window !== 'undefined' &&
-            ((window as any).Capacitor?.isNativePlatform?.() ||
-                navigator.userAgent.includes('Capacitor'))
+            (window as any).Capacitor?.isNativePlatform?.()
 
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
@@ -43,9 +42,19 @@ export default function RegisterPage() {
             return
         }
 
-        // For native app, open URL in system browser
+        // For native app, open in-app browser
         if (isNativeApp && data?.url) {
-            window.open(data.url, '_blank')
+            try {
+                const { Browser } = await import('@capacitor/browser')
+                await Browser.open({
+                    url: data.url,
+                    presentationStyle: 'popover',
+                    toolbarColor: '#1e293b'
+                })
+            } catch (e) {
+                // Fallback - redirect in same window
+                window.location.href = data.url
+            }
             setLoading(false)
         }
     }

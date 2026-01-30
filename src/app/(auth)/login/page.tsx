@@ -55,17 +55,14 @@ export default function LoginPage() {
 
         // Check if we're in a Capacitor/native app context
         const isNativeApp = typeof window !== 'undefined' &&
-            ((window as any).Capacitor?.isNativePlatform?.() ||
-                navigator.userAgent.includes('Capacitor'))
+            (window as any).Capacitor?.isNativePlatform?.()
 
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
                 redirectTo: redirectUrl,
-                // Skip automatic redirect for native apps
                 skipBrowserRedirect: isNativeApp,
                 queryParams: {
-                    // Force account selection
                     prompt: 'select_account'
                 }
             }
@@ -81,10 +78,19 @@ export default function LoginPage() {
             return
         }
 
-        // For native app, open URL in system browser and handle deep link
+        // For native app, open in-app browser
         if (isNativeApp && data?.url) {
-            // Open in system browser - user will be redirected back via deep link
-            window.open(data.url, '_blank')
+            try {
+                const { Browser } = await import('@capacitor/browser')
+                await Browser.open({
+                    url: data.url,
+                    presentationStyle: 'popover',
+                    toolbarColor: '#1e293b'
+                })
+            } catch (e) {
+                // Fallback - redirect in same window (will load in WebView)
+                window.location.href = data.url
+            }
             setGoogleLoading(false)
         }
         // For web, the default redirect will happen automatically
