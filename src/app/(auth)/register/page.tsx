@@ -16,12 +16,30 @@ export default function RegisterPage() {
         setLoading(true)
         setError(null)
 
-        // Use auth callback page for redirect
-        const redirectUrl = 'https://laundry-terdekat.vercel.app/auth/callback'
-
-        // Check if we're in a Capacitor/native app context
         const isNativeApp = typeof window !== 'undefined' &&
             (window as any).Capacitor?.isNativePlatform?.()
+
+        // 1. Try Native Login first if on Capacitor
+        if (isNativeApp) {
+            try {
+                const { signInWithGoogleNative } = await import('@/utils/native-auth')
+                const { data, error } = await signInWithGoogleNative()
+
+                if (error) throw error
+
+                if (data?.session) {
+                    router.push('/')
+                    setLoading(false)
+                    return
+                }
+            } catch (err: any) {
+                console.error('Native login failed, falling back to web:', err)
+                // Don't return, allow fallback
+            }
+        }
+
+        // 2. Web Login Fallback
+        const redirectUrl = 'https://laundry-terdekat.vercel.app/auth/callback'
 
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
@@ -44,7 +62,8 @@ export default function RegisterPage() {
             return
         }
 
-        // For native app, open in-app browser
+        // For native app, open in-app browser if skipBrowserRedirect was true and data.url is available
+        // This block is now only for the web fallback if skipBrowserRedirect was true
         if (isNativeApp && data?.url) {
             try {
                 const { Browser } = await import('@capacitor/browser')
@@ -67,6 +86,8 @@ export default function RegisterPage() {
                 window.location.href = data.url
             }
         }
+
+        setLoading(false)
     }
 
     return (

@@ -50,12 +50,32 @@ export default function LoginPage() {
         setGoogleLoading(true)
         setError(null)
 
-        // Use auth callback page for redirect
-        const redirectUrl = 'https://laundry-terdekat.vercel.app/auth/callback'
-
-        // Check if we're in a Capacitor/native app context
+        // Check platform
         const isNativeApp = typeof window !== 'undefined' &&
             (window as any).Capacitor?.isNativePlatform?.()
+
+        // 1. Try Native Login first if on Capacitor
+        if (isNativeApp) {
+            try {
+                const { signInWithGoogleNative } = await import('@/utils/native-auth')
+                const { data, error } = await signInWithGoogleNative()
+
+                if (error) throw error
+
+                if (data?.session) {
+                    router.push('/')
+                    setGoogleLoading(false)
+                    return
+                }
+            } catch (err: any) {
+                console.error('Native login failed, falling back to web:', err)
+                // Don't return, allow fallback
+            }
+        }
+
+        // 2. Web Login Fallback (or if native fails/not available)
+        // Use auth callback page for redirect
+        const redirectUrl = 'https://laundry-terdekat.vercel.app/auth/callback'
 
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
@@ -78,32 +98,11 @@ export default function LoginPage() {
             return
         }
 
-        // For native app, open in-app browser
-        if (isNativeApp && data?.url) {
-            try {
-                const { Browser } = await import('@capacitor/browser')
-
-                // Listen for browser close to check session
-                Browser.addListener('browserFinished', async () => {
-                    // Check if user is now logged in
-                    const { data: { session } } = await supabase.auth.getSession()
-                    if (session) {
-                        router.push('/')
-                    }
-                    setGoogleLoading(false)
-                })
-
-                await Browser.open({
-                    url: data.url,
-                    presentationStyle: 'popover',
-                    toolbarColor: '#1e293b'
-                })
-            } catch (e) {
-                // Fallback - redirect in same window
-                window.location.href = data.url
-            }
-        }
         // For web, the default redirect will happen automatically
+        // If isNativeApp is true and skipBrowserRedirect was false, it means the native plugin failed,
+        // and we are now relying on the web flow to open in the system browser.
+        // The user will be redirected to the app via the deep link after successful login.
+        setGoogleLoading(false) // This line was missing for the web flow success path
     }
 
     return (

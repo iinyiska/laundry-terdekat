@@ -14,6 +14,11 @@ const config: CapacitorConfig = {
         Browser: {
             // Browser will handle OAuth in in-app browser
         },
+        GoogleAuth: {
+            scopes: ['profile', 'email'],
+            serverClientId: '989969981177-u04mgh5tdap621t7oeoqcbgg6a138u02.apps.googleusercontent.com',
+            forceCodeForRefreshToken: true
+        },
         App: {
             launchDarkMode: true
         },
