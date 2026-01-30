@@ -50,15 +50,24 @@ export default function LoginPage() {
         setGoogleLoading(true)
         setError(null)
 
-        // Use production URL for redirect
-        const redirectUrl = process.env.NODE_ENV === 'production'
-            ? 'https://laundry-terdekat.vercel.app'
-            : window.location.origin
+        // Always use production URL for redirect
+        const redirectUrl = 'https://laundry-terdekat.vercel.app'
 
-        const { error } = await supabase.auth.signInWithOAuth({
+        // Check if we're in a Capacitor/native app context
+        const isNativeApp = typeof window !== 'undefined' &&
+            ((window as any).Capacitor?.isNativePlatform?.() ||
+                navigator.userAgent.includes('Capacitor'))
+
+        const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: redirectUrl
+                redirectTo: redirectUrl,
+                // Skip automatic redirect for native apps
+                skipBrowserRedirect: isNativeApp,
+                queryParams: {
+                    // Force account selection
+                    prompt: 'select_account'
+                }
             }
         })
 
@@ -69,7 +78,16 @@ export default function LoginPage() {
                 setError(error.message)
             }
             setGoogleLoading(false)
+            return
         }
+
+        // For native app, open URL in system browser and handle deep link
+        if (isNativeApp && data?.url) {
+            // Open in system browser - user will be redirected back via deep link
+            window.open(data.url, '_blank')
+            setGoogleLoading(false)
+        }
+        // For web, the default redirect will happen automatically
     }
 
     return (

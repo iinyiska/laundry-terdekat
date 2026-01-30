@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { MapPin, Sparkles, Truck, Clock, Shield, Star, ChevronRight, Zap, Gift, Navigation, Loader2 } from 'lucide-react'
+import { MapPin, Sparkles, Truck, Clock, Shield, Star, ChevronRight, Zap, Gift, Navigation, Loader2, User, CheckCircle } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 type SiteSettings = {
@@ -57,12 +57,21 @@ export default function Home() {
   const [location, setLocation] = useState<{ city: string; kelurahan: string } | null>(null)
   const [isLocating, setIsLocating] = useState(false)
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
+  const [user, setUser] = useState<any>(null)
+  const [userLoading, setUserLoading] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
     loadSettings()
     getLocation()
+    checkUser()
   }, [])
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    setUser(user)
+    setUserLoading(false)
+  }
 
   const loadSettings = async () => {
     // Try localStorage first (set by admin panel)
@@ -90,7 +99,7 @@ export default function Home() {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1`)
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1&zoom=18`)
             const data = await response.json()
             const addr = data.address || {}
             setLocation({ city: addr.city || addr.town || addr.state || 'Yogyakarta', kelurahan: addr.suburb || addr.village || addr.neighbourhood || 'Kelurahan' })
@@ -99,8 +108,11 @@ export default function Home() {
           }
           setIsLocating(false)
         },
-        () => { setLocation({ city: 'Yogyakarta', kelurahan: 'Sosromenduran' }); setIsLocating(false) },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        () => {
+          setLocation({ city: 'Yogyakarta', kelurahan: 'Sosromenduran' })
+          setIsLocating(false)
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       )
     }
   }
@@ -119,64 +131,58 @@ export default function Home() {
   const needsOverlay = settings.bg_theme === 'photo' || settings.bg_theme === 'custom'
 
   const featureIcons = [MapPin, Truck, Clock, Shield]
-  const featureColors = ['from-blue-500 to-cyan-400', 'from-green-500 to-emerald-400', 'from-orange-500 to-yellow-400', 'from-purple-500 to-pink-400']
+  const featureColors = ['from-blue-500 to-cyan-500', 'from-purple-500 to-pink-500', 'from-orange-500 to-yellow-500', 'from-green-500 to-emerald-500']
 
   return (
-    <main className="min-h-screen pb-nav relative">
+    <main className="min-h-screen pb-32">
       {/* Background */}
-      <div className="fixed inset-0 -z-10 overflow-hidden" style={getBackground()}>
-        {settings.bg_theme === 'gradient' && (
-          <>
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
-            <div className="absolute top-1/4 -left-32 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px]" />
-            <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px]" />
-          </>
+      <div className="fixed inset-0 -z-10">
+        {settings.bg_theme === 'image' && settings.custom_bg_url ? (
+          <><div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${settings.custom_bg_url})` }} /><div className="absolute inset-0 bg-black/60" /></>
+        ) : (
+          <><div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" /><div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px]" /><div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px]" /></>
         )}
-        {needsOverlay && <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-slate-900" />}
       </div>
 
-      {/* Hero Section - NO ADMIN LINK */}
-      <section className="relative pt-8 px-4 md:pt-16">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center floating overflow-hidden" style={{ background: `linear-gradient(135deg, ${settings.primary_color}, ${settings.accent_color})` }}>
-              {settings.app_logo ? (
-                <img src={settings.app_logo} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <Sparkles className="w-7 h-7 text-white" />
-              )}
+      {/* Header */}
+      <header className="px-4 py-6 flex items-center justify-between max-w-6xl mx-auto">
+        <div className="flex items-center gap-3 ml-12">
+          {settings.app_logo ? (
+            <img src={settings.app_logo} alt={settings.app_title} className="w-10 h-10 rounded-xl object-cover" />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center"><Sparkles className="w-5 h-5 text-white" /></div>
+          )}
+          <span className="font-bold text-xl">{settings.app_title}</span>
+        </div>
+        <div className="glass px-4 py-2 rounded-full flex items-center gap-2 text-sm">
+          {isLocating ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <Navigation className="w-4 h-4 text-blue-400" />}
+          <span className="text-gray-300">{location ? location.city : 'Detecting...'}</span>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="px-4 py-8 md:py-16 max-w-6xl mx-auto">
+        <div className="glass p-8 md:p-12 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 md:w-80 md:h-80 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-full blur-3xl" />
+          <div className="relative z-10">
+            <span className="inline-flex items-center gap-2 text-blue-400 text-sm font-medium mb-4"><Sparkles className="w-4 h-4" />Platform Laundry #1</span>
+            <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight">{settings.hero_title}</h1>
+            <p className="text-gray-400 text-lg mb-8 max-w-2xl">{settings.hero_subtitle}</p>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/order" className="btn-gradient px-8 py-4 text-lg flex items-center gap-2"><MapPin className="w-5 h-5" />Cari Laundry</Link>
+              <Link href="/orders" className="glass px-8 py-4 text-lg hover:bg-white/10 transition">Lacak Pesanan</Link>
             </div>
-            <h1 className="text-3xl font-bold gradient-text">{settings.app_title || 'Laundry Terdekat'}</h1>
-          </div>
-
-          <h2 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight text-white">{settings.hero_title}</h2>
-          <p className="text-gray-300 text-lg md:text-xl max-w-2xl mx-auto mb-8">{settings.hero_subtitle}</p>
-
-          <div className="glass p-6 max-w-lg mx-auto mb-8 text-left">
-            <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center location-pulse">
-                <MapPin className="w-6 h-6 text-blue-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-400 mb-1">Lokasi Anda</p>
-                <p className="font-semibold text-white">{isLocating ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Mendeteksi...</span> : `${location?.kelurahan}, ${location?.city}`}</p>
-              </div>
-              <button onClick={getLocation} className="p-3 rounded-xl bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition"><Navigation className="w-5 h-5" /></button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/order" className="btn-gradient text-lg flex items-center gap-2 pulse-glow"><Zap className="w-5 h-5" />Order Sekarang<ChevronRight className="w-5 h-5" /></Link>
-            <Link href="/register" className="glass px-8 py-4 rounded-2xl font-semibold text-gray-300 hover:text-white hover:bg-white/10 transition flex items-center gap-2"><Gift className="w-5 h-5 text-yellow-400" />Daftar & Dapat Diskon 20%</Link>
+            {location && (<div className="mt-8 flex items-center gap-3 text-sm text-gray-400"><MapPin className="w-4 h-4 text-green-400" /><span>Lokasi terdeteksi: <strong className="text-white">{location.kelurahan}, {location.city}</strong></span></div>)}
           </div>
         </div>
       </section>
 
       {/* Express Promo */}
       {settings.express_enabled && (
-        <section className="px-4 py-8 max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-3xl p-6 md:p-8">
-            <div className="flex flex-col md:flex-row items-center gap-6">
+        <section className="px-4 py-4 max-w-6xl mx-auto">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-orange-500/20 via-yellow-500/20 to-orange-500/20 border border-yellow-500/30">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.15),transparent)]" />
+            <div className="relative p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0"><Zap className="w-10 h-10 text-white" /></div>
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-2xl font-bold text-yellow-300 mb-2">⚡ {settings.express_label}</h3>
@@ -227,28 +233,47 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Promo */}
+      {/* Promo - Show different content based on login status */}
       {settings.promo_enabled && (
         <section className="px-4 py-8 max-w-4xl mx-auto">
           <div className="relative overflow-hidden rounded-3xl p-8 md:p-12" style={{ background: `linear-gradient(135deg, ${settings.primary_color}, ${settings.accent_color}, #ec4899)` }}>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
             <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4"><Star className="w-6 h-6 text-yellow-300" /><span className="text-yellow-300 font-semibold">Penawaran Spesial</span></div>
-              <h3 className="text-3xl md:text-4xl font-extrabold text-white mb-4">{settings.promo_text}</h3>
-              <p className="text-white/80 mb-6 max-w-xl">Daftar sekarang dan nikmati potongan harga eksklusif!</p>
-              <Link href="/register" className="inline-flex items-center gap-2 bg-white text-purple-600 font-bold px-8 py-4 rounded-2xl hover:bg-gray-100 transition"><Gift className="w-5 h-5" />Daftar Gratis</Link>
+              {userLoading ? (
+                <div className="flex items-center justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
+              ) : user ? (
+                // User is logged in - show member promo
+                <>
+                  <div className="flex items-center gap-2 mb-4"><CheckCircle className="w-6 h-6 text-green-300" /><span className="text-green-300 font-semibold">Member Aktif</span></div>
+                  <h3 className="text-3xl md:text-4xl font-extrabold text-white mb-4">Selamat, {user.user_metadata?.full_name || user.email?.split('@')[0]}! 🎉</h3>
+                  <p className="text-white/80 mb-6 max-w-xl">Kamu berhak mendapat diskon 20% untuk semua layanan. Gunakan sekarang!</p>
+                  <Link href="/order" className="inline-flex items-center gap-2 bg-white text-purple-600 font-bold px-8 py-4 rounded-2xl hover:bg-gray-100 transition"><Zap className="w-5 h-5" />Order Sekarang</Link>
+                </>
+              ) : (
+                // User not logged in - show register promo
+                <>
+                  <div className="flex items-center gap-2 mb-4"><Star className="w-6 h-6 text-yellow-300" /><span className="text-yellow-300 font-semibold">Penawaran Spesial</span></div>
+                  <h3 className="text-3xl md:text-4xl font-extrabold text-white mb-4">{settings.promo_text}</h3>
+                  <p className="text-white/80 mb-6 max-w-xl">Daftar sekarang dan nikmati potongan harga eksklusif!</p>
+                  <Link href="/register" className="inline-flex items-center gap-2 bg-white text-purple-600 font-bold px-8 py-4 rounded-2xl hover:bg-gray-100 transition"><Gift className="w-5 h-5" />Daftar Gratis</Link>
+                </>
+              )}
             </div>
           </div>
         </section>
       )}
 
-      {/* Navigation */}
+      {/* Navigation - Updated to check login status */}
       <nav className="fixed bottom-6 left-4 right-4 max-w-lg mx-auto glass-bright py-4 px-6 flex justify-around items-center z-50">
         <Link href="/" className="flex flex-col items-center text-blue-400"><Sparkles className="w-6 h-6" /><span className="text-xs mt-1 font-medium">Beranda</span></Link>
         <Link href="/order" className="flex flex-col items-center text-gray-400 hover:text-white transition"><MapPin className="w-6 h-6" /><span className="text-xs mt-1">Cari</span></Link>
         <Link href="/order" className="relative -mt-8 bg-gradient-to-br from-blue-500 to-purple-600 p-5 rounded-2xl shadow-lg shadow-blue-500/30"><Zap className="w-7 h-7 text-white" /></Link>
         <Link href="/orders" className="flex flex-col items-center text-gray-400 hover:text-white transition"><Clock className="w-6 h-6" /><span className="text-xs mt-1">Pesanan</span></Link>
-        <Link href="/register" className="flex flex-col items-center text-gray-400 hover:text-white transition"><Gift className="w-6 h-6" /><span className="text-xs mt-1">Promo</span></Link>
+        {user ? (
+          <Link href="/account" className="flex flex-col items-center text-gray-400 hover:text-white transition"><User className="w-6 h-6" /><span className="text-xs mt-1">Akun</span></Link>
+        ) : (
+          <Link href="/register" className="flex flex-col items-center text-gray-400 hover:text-white transition"><Gift className="w-6 h-6" /><span className="text-xs mt-1">Promo</span></Link>
+        )}
       </nav>
     </main>
   )

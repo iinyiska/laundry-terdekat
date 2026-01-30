@@ -5,7 +5,18 @@ const config: CapacitorConfig = {
     appName: 'Laundry Terdekat',
     webDir: 'out',
     server: {
-        androidScheme: 'https'
+        androidScheme: 'https',
+        // Point to production URL for OAuth callbacks
+        url: 'https://laundry-terdekat.vercel.app',
+        cleartext: true
+    },
+    plugins: {
+        Browser: {
+            // Browser plugin config
+        },
+        App: {
+            launchDarkMode: true
+        }
     }
 };
 
