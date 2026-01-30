@@ -62,9 +62,9 @@ export default function OrdersPage() {
     }, [])
 
     const loadOrders = async () => {
-        // Get user for filtering
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        // FAST PATH: Get session from local storage (no network call usually)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) return
 
         // Only show spinner if no cache
         if (!localStorage.getItem('laundry_orders_cache')) {
@@ -74,7 +74,7 @@ export default function OrdersPage() {
         const { data } = await supabase
             .from('orders')
             .select('*')
-            .eq('user_id', user.id) // Critical: Filter by user
+            .eq('user_id', session.user.id) // Critical: Filter by user
             .order('created_at', { ascending: false })
             .limit(50)
 

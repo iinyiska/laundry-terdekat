@@ -20,22 +20,55 @@ export default function LoginPage() {
         setLoading(true)
         setError(null)
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        })
+        // Retry logic for unstable connections
+        let authError = null
+        let success = false
 
-        if (error) {
-            setError(error.message)
+        for (let i = 0; i < 3; i++) {
+            try {
+                const { error, data } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                })
+
+                if (error) {
+                    // Only retry on network/fetch errors
+                    if (error.message.includes('signal') || error.message.includes('Network') || error.message.includes('fetch')) {
+                        console.log(`Login attempt ${i + 1} failed, retrying...`)
+                        await new Promise(r => setTimeout(r, 1000))
+                        continue
+                    }
+                    authError = error
+                    break // Stop on auth error (wrong password etc)
+                } else {
+                    success = true
+                    break
+                }
+            } catch (e) {
+                // Catch fetch errors
+                console.error(e)
+                if (i === 2) authError = { message: 'Koneksi bermasalah. Silakan coba lagi.' } as any
+                await new Promise(r => setTimeout(r, 1000))
+            }
+        }
+
+        if (authError) {
+            setError(authError.message)
             setLoading(false)
-        } else {
+        } else if (success) {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
+                // Pre-fetch profile to cache it
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('role')
+                    .select('*, role') // Get all profile data
                     .eq('id', user.id)
                     .single()
+
+                // Cache immediately
+                if (profile) {
+                    localStorage.setItem('laundry_profile_cache', JSON.stringify({ user, profile }))
+                }
 
                 if (profile?.role === 'merchant') {
                     router.push('/merchant/dashboard')
