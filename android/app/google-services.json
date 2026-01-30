@@ -1,0 +1,47 @@
+{
+    "project_info": {
+        "project_number": "989969981177",
+        "project_id": "laundry-terdekat",
+        "storage_bucket": "laundry-terdekat.appspot.com"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:989969981177:android:laundryterdekat",
+                "android_client_info": {
+                    "package_name": "com.laundryterdekat.app"
+                }
+            },
+            "oauth_client": [
+                {
+                    "client_id": "989969981177-u04mgh5tdap621t7oeoqcbgg6a138u02.apps.googleusercontent.com",
+                    "client_type": 1,
+                    "android_info": {
+                        "package_name": "com.laundryterdekat.app",
+                        "certificate_hash": "cbcd9239c1c5e1db19d4ef85f7566efff3220773"
+                    }
+                },
+                {
+                    "client_id": "989969981177-cqfqsco77s04r4psaaqojkq143ontvsc.apps.googleusercontent.com",
+                    "client_type": 3
+                }
+            ],
+            "api_key": [
+                {
+                    "current_key": ""
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": [
+                        {
+                            "client_id": "989969981177-cqfqsco77s04r4psaaqojkq143ontvsc.apps.googleusercontent.com",
+                            "client_type": 3
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

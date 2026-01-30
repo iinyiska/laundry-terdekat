@@ -4,4 +4,5 @@
     <string name="title_activity_main">Laundry Terdekat</string>
     <string name="package_name">com.laundryterdekat.app</string>
     <string name="custom_url_scheme">com.laundryterdekat.app</string>
+    <string name="server_client_id">989969981177-cqfqsco77s04r4psaaqojkq143ontvsc.apps.googleusercontent.com</string>
 </resources>
