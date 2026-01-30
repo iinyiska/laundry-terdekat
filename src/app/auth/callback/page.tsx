@@ -25,7 +25,7 @@ function AuthCallbackContent() {
             const refreshToken = hashParams.get('refresh_token')
 
             if (accessToken && refreshToken) {
-                // Set session in this context
+                // Set session in this browser context first
                 const { error } = await supabase.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken
@@ -35,34 +35,26 @@ function AuthCallbackContent() {
                     throw error
                 }
 
-                // Create deep link URL for Capacitor app
-                const appDeepLink = `laundryterdekat://auth?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
-                setDeepLinkUrl(appDeepLink)
-
-                // Android intent URL (more reliable)
-                const intentUrl = `intent://auth?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}#Intent;scheme=laundryterdekat;package=com.laundryterdekat.app;end`
-
                 setStatus('success')
                 setMessage('Login berhasil!')
 
-                // Try to open deep link automatically
+                // For APK: Redirect to mobile-callback page with tokens in URL
+                // This page will run in APK's WebView and can set the session there
+                const mobileCallbackUrl = `https://laundry-terdekat.vercel.app/auth/mobile-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+
+                // First try deep link (for apps that support it)
+                const appDeepLink = `laundryterdekat://auth?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+                setDeepLinkUrl(appDeepLink)
+
                 setTimeout(() => {
-                    // Try custom scheme first
+                    // Try deep link first
                     window.location.href = appDeepLink
 
-                    // After a short delay, try Android intent as fallback
+                    // If deep link doesn't work (still on page after 1s), redirect to HTTPS callback
                     setTimeout(() => {
-                        // Check if still on this page (deep link didn't work)
-                        if (document.hasFocus()) {
-                            window.location.href = intentUrl
-                        }
-                    }, 800)
-
-                    // After more delay, show manual instructions if still here
-                    setTimeout(() => {
-                        setStatus('manual')
-                        setMessage('Kembali ke Aplikasi')
-                    }, 2000)
+                        // Redirect to HTTPS mobile-callback which will work in APK WebView
+                        window.location.href = mobileCallbackUrl
+                    }, 1000)
                 }, 500)
             } else {
                 // Check if session already exists
