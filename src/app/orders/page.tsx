@@ -39,18 +39,33 @@ export default function OrdersPage() {
     const supabase = createClient()
 
     useEffect(() => {
+        // Load cache first
+        const cached = localStorage.getItem('laundry_orders_cache')
+        if (cached) {
+            try {
+                setOrders(JSON.parse(cached))
+                setLoading(false)
+            } catch { }
+        }
         loadOrders()
     }, [])
 
     const loadOrders = async () => {
-        setLoading(true)
+        // Only show full loading spinner if we have no data
+        if (!localStorage.getItem('laundry_orders_cache')) {
+            setLoading(true)
+        }
+
         const { data } = await supabase
             .from('orders')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(20)
 
-        if (data) setOrders(data)
+        if (data) {
+            setOrders(data)
+            localStorage.setItem('laundry_orders_cache', JSON.stringify(data))
+        }
         setLoading(false)
     }
 
@@ -60,7 +75,7 @@ export default function OrdersPage() {
     }
 
     return (
-        <main className="min-h-screen pb-nav">
+        <main className="min-h-screen pb-32">
             <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
 
             {/* Header */}

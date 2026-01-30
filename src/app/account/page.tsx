@@ -36,30 +36,67 @@ export default function AccountPage() {
     }, [])
 
     const loadUserData = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            router.push('/login')
-            return
+        // 1. Try Cache
+        const cached = localStorage.getItem('laundry_profile_cache')
+        let hasCache = false
+        if (cached) {
+            try {
+                const { user: cachedUser, profile: cachedProfile } = JSON.parse(cached)
+                if (cachedUser) {
+                    setUser(cachedUser)
+                    if (cachedProfile) {
+                        setProfile(cachedProfile)
+                        setFullName(cachedProfile.full_name || cachedUser.user_metadata?.full_name || '')
+                        setPhone(cachedProfile.phone || '')
+                        setAddress(cachedProfile.address || '')
+                    } else {
+                        setFullName(cachedUser.user_metadata?.full_name || '')
+                    }
+                    setLoading(false)
+                    hasCache = true
+                }
+            } catch { }
         }
 
-        setUser(user)
+        if (!hasCache) setLoading(true)
 
-        // Load profile from profiles table
-        const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single()
+        // 2. Fetch Fresh Data
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
 
-        if (profileData) {
-            setProfile(profileData)
-            setFullName(profileData.full_name || user.user_metadata?.full_name || '')
-            setPhone(profileData.phone || '')
-            setAddress(profileData.address || '')
-        } else {
-            // Create profile if doesn't exist
-            setFullName(user.user_metadata?.full_name || user.email?.split('@')[0] || '')
+            if (!user) {
+                if (!hasCache) router.push('/login')
+                return
+            }
+
+            // Parallel fetch for profile
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single()
+
+            setUser(user)
+
+            if (profileData) {
+                setProfile(profileData)
+                // Only update form fields if user isn't typing (though usually this runs on mount)
+                setFullName(profileData.full_name || user.user_metadata?.full_name || '')
+                setPhone(profileData.phone || '')
+                setAddress(profileData.address || '')
+            } else {
+                setFullName(user.user_metadata?.full_name || user.email?.split('@')[0] || '')
+            }
+
+            // Update Cache
+            localStorage.setItem('laundry_profile_cache', JSON.stringify({
+                user,
+                profile: profileData
+            }))
+
+        } catch (e) {
+            // If fetch fails but we have cache, stay on page
+            if (!hasCache) router.push('/login')
         }
 
         setLoading(false)
