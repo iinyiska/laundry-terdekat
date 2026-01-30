@@ -264,6 +264,7 @@ export default function AdminPage() {
                         alert('Gagal simpan ke database: ' + error.message + '\n\nPastikan Anda sudah menjalankan script SQL permission!')
                         showStatus('error', 'DB error: ' + error.message)
                     } else {
+                        alert('✅ Background Berhasil Disimpan ke Database!')
                         showStatus('success', '✅ Background uploaded!')
                     }
                 } catch (err: any) {

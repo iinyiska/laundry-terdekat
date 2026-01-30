@@ -29,8 +29,8 @@ export function useDeepLinkAuth() {
                 if (accessToken && refreshToken) {
                     try {
                         const { error } = await supabase.auth.setSession({
-                            access_token: decodeURIComponent(accessToken),
-                            refresh_token: decodeURIComponent(refreshToken)
+                            access_token: accessToken,
+                            refresh_token: refreshToken
                         })
 
                         if (!error) {
