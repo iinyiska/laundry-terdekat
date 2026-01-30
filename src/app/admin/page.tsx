@@ -476,7 +476,7 @@ export default function AdminPage() {
                                 {BG_THEMES.map((theme) => (
                                     <button
                                         key={theme.id}
-                                        onClick={() => theme.id !== 'custom' && selectTheme(theme.id)}
+                                        onClick={() => selectTheme(theme.id)}
                                         disabled={theme.id === 'custom' && !settings.custom_bg_url}
                                         className={`p-4 rounded-2xl border-3 transition ${settings.bg_theme === theme.id
                                             ? 'border-green-500 ring-4 ring-green-500/30 bg-green-500/10'
