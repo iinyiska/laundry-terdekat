@@ -111,7 +111,7 @@ export default function AccountPage() {
     }
 
     return (
-        <main className="min-h-screen pb-8">
+        <main className="min-h-screen pb-32">
             <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
 
             {/* Header */}
@@ -180,7 +180,7 @@ export default function AccountPage() {
                         <div>
                             <label className="text-sm text-gray-400 mb-2 block">Email</label>
                             <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                {(!user?.email) && <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />}
                                 <input
                                     type="email"
                                     className="input-glass w-full pl-12 opacity-50"

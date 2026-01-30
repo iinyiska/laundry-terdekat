@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import SidebarMenu from "@/components/SidebarMenu";
+import BottomNav from "@/components/BottomNav";
 import DeepLinkAuthProvider from "@/components/DeepLinkAuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -22,6 +23,7 @@ export default function RootLayout({
         <DeepLinkAuthProvider>
           <SidebarMenu />
           {children}
+          <BottomNav />
         </DeepLinkAuthProvider>
       </body>
     </html>

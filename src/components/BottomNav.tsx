@@ -1,49 +1,68 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Search, ClipboardList, User } from 'lucide-react'
-
-const navItems = [
-    { href: '/', label: 'Home', icon: Home },
-    { href: '/order', label: 'Order', icon: Search },
-    { href: '/orders', label: 'Pesanan', icon: ClipboardList },
-    { href: '/login', label: 'Akun', icon: User },
-]
+import { Sparkles, MapPin, Zap, Clock, User, Gift } from 'lucide-react'
+import { createClient } from '@/utils/supabase/client'
 
 export default function BottomNav() {
     const pathname = usePathname()
+    const [user, setUser] = useState<any>(null)
+    const supabase = createClient()
+
+    useEffect(() => {
+        // Simple auth check
+        supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+
+        // Listen for changes (syncs with Login/Sidebar)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+            setUser(session?.user || null)
+        })
+
+        return () => subscription.unsubscribe()
+    }, [])
 
     // Don't show on admin or merchant pages
     if (pathname?.startsWith('/admin') || pathname?.startsWith('/merchant')) {
         return null
     }
 
-    return (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 glass-bright border-t border-white/10 safe-area-bottom">
-            <div className="max-w-2xl mx-auto px-4">
-                <div className="flex justify-around items-center py-2">
-                    {navItems.map((item) => {
-                        const isActive = pathname === item.href ||
-                            (item.href !== '/' && pathname?.startsWith(item.href))
-                        const Icon = item.icon
+    // Helper for active state
+    const isActive = (path: string) => pathname === path
 
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${isActive
-                                        ? 'text-blue-400 bg-blue-500/20'
-                                        : 'text-gray-400 hover:text-white'
-                                    }`}
-                            >
-                                <Icon className="w-5 h-5" />
-                                <span className="text-xs font-medium">{item.label}</span>
-                            </Link>
-                        )
-                    })}
-                </div>
-            </div>
+    return (
+        <nav className="fixed bottom-6 left-4 right-4 max-w-lg mx-auto glass-bright py-3 px-6 flex justify-around items-center z-50 rounded-2xl shadow-xl backdrop-blur-md">
+            <Link href="/" className={`flex flex-col items-center transition ${isActive('/') ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                <Sparkles className="w-6 h-6" />
+                <span className="text-[10px] mt-1 font-medium">Beranda</span>
+            </Link>
+
+            <Link href="/order" className={`flex flex-col items-center transition ${isActive('/order') ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                <MapPin className="w-6 h-6" />
+                <span className="text-[10px] mt-1">Cari</span>
+            </Link>
+
+            <Link href="/order" className="relative -mt-10 bg-gradient-to-br from-blue-500 to-purple-600 p-4 rounded-2xl shadow-lg shadow-blue-500/30 hover:scale-105 transition transform active:scale-95">
+                <Zap className="w-7 h-7 text-white" />
+            </Link>
+
+            <Link href="/orders" className={`flex flex-col items-center transition ${isActive('/orders') ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                <Clock className="w-6 h-6" />
+                <span className="text-[10px] mt-1">Pesanan</span>
+            </Link>
+
+            {user ? (
+                <Link href="/account" className={`flex flex-col items-center transition ${isActive('/account') ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                    <User className="w-6 h-6" />
+                    <span className="text-[10px] mt-1">Akun</span>
+                </Link>
+            ) : (
+                <Link href="/login" className={`flex flex-col items-center transition ${isActive('/login') ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                    <Gift className="w-6 h-6" />
+                    <span className="text-[10px] mt-1">Masuk</span>
+                </Link>
+            )}
         </nav>
     )
 }
