@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-    appId: 'com.laundry.terdekat',
+    appId: 'com.laundryterdekat.app',
     appName: 'Laundry Terdekat',
     webDir: 'out',
     server: {
@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
         },
         GoogleAuth: {
             scopes: ['profile', 'email'],
-            serverClientId: '989969981177-u04mgh5tdap621t7oeoqcbgg6a138u02.apps.googleusercontent.com',
+            serverClientId: '989969981177-cqfqsco77s04r4psaaqojkq143ontvsc.apps.googleusercontent.com',
             forceCodeForRefreshToken: true
         },
         App: {
