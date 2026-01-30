@@ -57,20 +57,30 @@ export default function LoginPage() {
         // 1. Try Native Login first if on Capacitor
         if (isNativeApp) {
             try {
+                alert('DEBUG: Mencoba Native Google Sign-In...')
                 const { signInWithGoogleNative } = await import('@/utils/native-auth')
                 const { data, error } = await signInWithGoogleNative()
 
-                if (error) throw error
+                if (error) {
+                    alert('DEBUG Native Error: ' + JSON.stringify(error))
+                    throw error
+                }
 
                 if (data?.session) {
+                    alert('DEBUG: Native login sukses! Session ada.')
                     router.push('/')
                     setGoogleLoading(false)
                     return
+                } else {
+                    alert('DEBUG: Native login selesai tapi tidak ada session')
                 }
             } catch (err: any) {
+                alert('DEBUG Native Catch: ' + (err?.message || JSON.stringify(err)))
                 console.error('Native login failed, falling back to web:', err)
-                // Silent catch to allow fallback
+                // Continue to web fallback
             }
+        } else {
+            alert('DEBUG: Bukan native app, langsung pakai web')
         }
 
         // 2. Web Login Fallback (or if native fails/not available)
