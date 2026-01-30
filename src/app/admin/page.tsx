@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Lock, Check, X, Home, FileText, Zap, Image, Layout, Upload, RefreshCw, AlertCircle, Sparkles } from 'lucide-react'
+import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Lock, Check, X, Home, FileText, Zap, Image, Layout, Upload, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 const ADMIN_PASSWORD = 'admin123laundry'
@@ -33,8 +33,6 @@ type SiteSettings = {
     express_enabled: boolean
     bg_theme: string
     custom_bg_url: string
-    app_title: string
-    app_logo: string
 }
 
 type PlatformService = {
@@ -72,9 +70,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
     express_eta: '8 jam',
     express_enabled: true,
     bg_theme: 'gradient',
-    custom_bg_url: '',
-    app_title: 'Laundry Terdekat',
-    app_logo: ''
+    custom_bg_url: ''
 }
 
 const BG_THEMES = [
@@ -139,7 +135,7 @@ export default function AdminPage() {
 
         // Then try Supabase
         try {
-            const { data: s, error } = await supabase.from('site_settings').select('*').eq('id', 'site_config').single()
+            const { data: s, error } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
             if (error) {
                 showStatus('error', 'Database error: ' + error.message + '. Using local storage.')
             } else if (s) {
@@ -168,7 +164,7 @@ export default function AdminPage() {
         // Try Supabase
         try {
             const { error } = await supabase.from('site_settings').upsert({
-                id: 'site_config',
+                id: 'main',
                 ...settings,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' })
@@ -196,7 +192,7 @@ export default function AdminPage() {
         // Try Supabase
         try {
             const { error } = await supabase.from('site_settings').upsert({
-                id: 'site_config',
+                id: 'main',
                 bg_theme: themeId,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' })
@@ -219,7 +215,6 @@ export default function AdminPage() {
             showStatus('error', 'File harus berupa gambar')
             return
         }
-
         if (file.size > 5 * 1024 * 1024) {
             showStatus('error', 'Maksimal 5MB')
             return
@@ -240,72 +235,25 @@ export default function AdminPage() {
             // Try Supabase
             try {
                 const { error } = await supabase.from('site_settings').upsert({
-                    id: 'site_config',
+                    id: 'main',
                     custom_bg_url: base64,
                     bg_theme: 'custom',
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'id' })
 
                 if (error) {
-                    console.error('DB Error:', error)
-                    alert('Gagal simpan ke database: ' + error.message + '\n\nPastikan Anda sudah menjalankan script SQL permission!')
-                    showStatus('error', 'DB error: ' + error.message)
+                    showStatus('error', 'DB error: ' + error.message + '. Saved locally.')
                 } else {
-                    alert('✅ Background Berhasil Disimpan ke Database!')
                     showStatus('success', '✅ Background uploaded!')
                 }
             } catch (err: any) {
-                alert('Error: ' + err.message)
-                showStatus('error', 'Error: ' + err.message)
+                showStatus('error', 'Error: ' + err.message + '. Saved locally.')
             }
 
             setUploading(false)
         }
         reader.onerror = () => {
             showStatus('error', 'Failed to read file')
-            setUploading(false)
-        }
-        reader.readAsDataURL(file)
-    }
-
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-
-        if (!file.type.startsWith('image/')) {
-            showStatus('error', 'File harus berupa gambar')
-            return
-        }
-        if (file.size > 2 * 1024 * 1024) {
-            showStatus('error', 'Maksimal 2MB')
-            return
-        }
-
-        setUploading(true)
-        showStatus('info', 'Uploading Logo...')
-
-        const reader = new FileReader()
-        reader.onload = async () => {
-            const base64 = reader.result as string
-            const newSettings = { ...settings, app_logo: base64 }
-            setSettings(newSettings)
-            localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
-
-            try {
-                const { error } = await supabase.from('site_settings').upsert({
-                    id: 'site_config',
-                    app_logo: base64,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' })
-
-                if (error) {
-                    showStatus('error', 'DB error: ' + error.message + '. Saved locally.')
-                } else {
-                    showStatus('success', '✅ Logo uploaded!')
-                }
-            } catch (err: any) {
-                showStatus('error', 'Error: ' + err.message)
-            }
             setUploading(false)
         }
         reader.readAsDataURL(file)
@@ -465,7 +413,7 @@ export default function AdminPage() {
                                 {BG_THEMES.map((theme) => (
                                     <button
                                         key={theme.id}
-                                        onClick={() => selectTheme(theme.id)}
+                                        onClick={() => theme.id !== 'custom' && selectTheme(theme.id)}
                                         disabled={theme.id === 'custom' && !settings.custom_bg_url}
                                         className={`p-4 rounded-2xl border-3 transition ${settings.bg_theme === theme.id
                                             ? 'border-green-500 ring-4 ring-green-500/30 bg-green-500/10'
@@ -517,30 +465,6 @@ export default function AdminPage() {
                 {/* Home Tab */}
                 {activeTab === 'home' && (
                     <div className="space-y-6">
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Sparkles className="w-5 h-5 text-yellow-400" />Identitas Aplikasi</h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm text-gray-400 mb-2 block">Nama Aplikasi (Header)</label>
-                                    <input className="input-glass w-full" value={settings.app_title} onChange={(e) => setSettings({ ...settings, app_title: e.target.value })} placeholder="Laundry Terdekat" />
-                                </div>
-                                <div>
-                                    <label className="text-sm text-gray-400 mb-2 block">Logo Aplikasi</label>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center overflow-hidden border border-white/20">
-                                            {settings.app_logo ? <img src={settings.app_logo} className="w-full h-full object-cover" /> : <Sparkles className="w-8 h-8 text-white" />}
-                                        </div>
-                                        <div>
-                                            <label className="btn-gradient py-2 px-4 text-sm cursor-pointer inline-block">
-                                                Ganti Logo
-                                                <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                                            </label>
-                                            <p className="text-xs text-gray-500 mt-2">Max 2MB</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Type className="w-5 h-5 text-blue-400" />Hero Section</h3>
                             <div className="space-y-4">
