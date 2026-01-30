@@ -50,10 +50,15 @@ export default function LoginPage() {
         setGoogleLoading(true)
         setError(null)
 
+        // Use production URL for redirect
+        const redirectUrl = process.env.NODE_ENV === 'production'
+            ? 'https://laundry-terdekat.vercel.app'
+            : window.location.origin
+
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/`
+                redirectTo: redirectUrl
             }
         })
 
