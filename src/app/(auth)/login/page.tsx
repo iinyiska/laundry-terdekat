@@ -103,10 +103,21 @@ export default function LoginPage() {
         if (isNativeApp && data?.url) {
             try {
                 const { Browser } = await import('@capacitor/browser')
+
+                // Listen for browser close/finish
+                Browser.addListener('browserFinished', () => {
+                    // Check if user is now logged in
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                        if (session) {
+                            router.push('/')
+                        }
+                    })
+                })
+
+                // Open in system browser (more reliable for OAuth)
                 await Browser.open({
                     url: data.url,
-                    presentationStyle: 'popover',
-                    toolbarColor: '#1e293b'
+                    windowName: '_system' // Use system browser
                 })
             } catch (e) {
                 // Fallback to standard window open
