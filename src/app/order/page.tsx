@@ -225,6 +225,10 @@ export default function OrderPage() {
         setError('')
 
         try {
+            // Get current user ID
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) throw new Error('Anda harus login kembali')
+
             // Generate order number
             const orderNum = 'LT' + new Date().toISOString().slice(2, 10).replace(/-/g, '') + '-' + String(Math.floor(Math.random() * 10000)).padStart(4, '0')
 
@@ -244,8 +248,8 @@ export default function OrderPage() {
                 itemsDetail = kiloanItems
             }
 
-            // Create order
-            const { data: order, error: orderError } = await supabase.from('orders').insert({
+            const newOrder = {
+                user_id: user.id, // Critical Fix
                 order_number: orderNum,
                 customer_name: customerName,
                 customer_whatsapp: whatsapp,
@@ -263,7 +267,10 @@ export default function OrderPage() {
                 total: calculateTotal(),
                 notes: notes,
                 status: 'pending'
-            }).select().single()
+            }
+
+            // Create order
+            const { data: order, error: orderError } = await supabase.from('orders').insert(newOrder).select().single()
 
             if (orderError) throw orderError
 
@@ -273,6 +280,16 @@ export default function OrderPage() {
                 status: 'pending',
                 notes: 'Order dibuat'
             })
+
+            // OPTIMISTIC UPDATE CACHE
+            // Add new order to top of cache so it appears instantly in list
+            try {
+                const cachedOrders = localStorage.getItem('laundry_orders_cache')
+                let ordersList = cachedOrders ? JSON.parse(cachedOrders) : []
+                // Add new order to start
+                ordersList = [order, ...ordersList]
+                localStorage.setItem('laundry_orders_cache', JSON.stringify(ordersList))
+            } catch (e) { console.error('Cache update failed', e) }
 
             setOrderSuccess(orderNum)
         } catch (err: any) {
