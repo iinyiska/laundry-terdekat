@@ -20,7 +20,15 @@ export default function SidebarMenu() {
     const supabase = createClient()
 
     useEffect(() => {
+        // Initial check
         checkUser()
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            setUser(session?.user || null)
+        })
+
+        return () => subscription.unsubscribe()
     }, [])
 
     const checkUser = async () => {
