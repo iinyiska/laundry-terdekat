@@ -39,19 +39,30 @@ function AuthCallbackContent() {
                 const appDeepLink = `laundryterdekat://auth?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
                 setDeepLinkUrl(appDeepLink)
 
+                // Android intent URL (more reliable)
+                const intentUrl = `intent://auth?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}#Intent;scheme=laundryterdekat;package=com.laundryterdekat.app;end`
+
                 setStatus('success')
                 setMessage('Login berhasil!')
 
                 // Try to open deep link automatically
                 setTimeout(() => {
-                    // Try opening the app deep link
+                    // Try custom scheme first
                     window.location.href = appDeepLink
 
-                    // After a delay, show manual instructions if still here
+                    // After a short delay, try Android intent as fallback
+                    setTimeout(() => {
+                        // Check if still on this page (deep link didn't work)
+                        if (document.hasFocus()) {
+                            window.location.href = intentUrl
+                        }
+                    }, 800)
+
+                    // After more delay, show manual instructions if still here
                     setTimeout(() => {
                         setStatus('manual')
                         setMessage('Kembali ke Aplikasi')
-                    }, 1500)
+                    }, 2000)
                 }, 500)
             } else {
                 // Check if session already exists
