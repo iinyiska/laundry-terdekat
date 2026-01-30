@@ -102,10 +102,13 @@ export default function Home() {
       try {
         const parsed = JSON.parse(localSettings)
         setSettings({ ...DEFAULT_SETTINGS, ...parsed })
+        // Don't override with DB - trust localStorage as source of truth
+        // Admin panel updates both localStorage and DB
+        return // Exit here - use localStorage only
       } catch { }
     }
 
-    // Then try Supabase (will override if successful)
+    // Only try Supabase if NO localStorage exists
     try {
       const { data } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
       if (data) {
