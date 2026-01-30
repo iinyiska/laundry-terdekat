@@ -85,12 +85,12 @@ export default function SidebarMenu() {
                                 return (
                                     <Link
                                         key="profile"
-                                        href="/"
+                                        href="/account"
                                         onClick={() => setIsOpen(false)}
                                         className="flex items-center gap-4 px-6 py-4 text-gray-300 hover:bg-white/10 hover:text-white transition-all"
                                     >
                                         <User className="w-5 h-5" />
-                                        <span className="font-medium">Profil</span>
+                                        <span className="font-medium">Akun Saya</span>
                                     </Link>
                                 )
                             }
@@ -105,8 +105,8 @@ export default function SidebarMenu() {
                                     href={item.href}
                                     onClick={() => setIsOpen(false)}
                                     className={`flex items-center gap-4 px-6 py-4 transition-all ${isActive
-                                            ? 'text-blue-400 bg-blue-500/10 border-r-2 border-blue-400'
-                                            : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                                        ? 'text-blue-400 bg-blue-500/10 border-r-2 border-blue-400'
+                                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
                                         }`}
                                 >
                                     <Icon className="w-5 h-5" />
