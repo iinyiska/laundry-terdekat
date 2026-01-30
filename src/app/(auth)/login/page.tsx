@@ -69,7 +69,7 @@ export default function LoginPage() {
                 }
             } catch (err: any) {
                 console.error('Native login failed, falling back to web:', err)
-                alert('Debug Native Error: ' + (err.message || JSON.stringify(err)))
+                // Silent catch to allow fallback
             }
         }
 
