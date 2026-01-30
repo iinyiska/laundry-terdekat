@@ -9,7 +9,9 @@ export function createClient() {
                 persistSession: true,
                 autoRefreshToken: true,
                 detectSessionInUrl: true,
-                storageKey: 'laundry_auth_token'
+                storageKey: 'laundry_auth_token',
+                storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+                flowType: 'pkce'
             }
         }
     )

@@ -60,7 +60,7 @@ export default function OrdersPage() {
     }
 
     return (
-        <main className="min-h-screen pb-32">
+        <main className="min-h-screen pb-nav">
             <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
 
             {/* Header */}
@@ -128,13 +128,7 @@ export default function OrdersPage() {
                     </div>
                 )}
             </div>
-
-            {/* Navigation */}
-            <nav className="fixed bottom-6 left-4 right-4 max-w-lg mx-auto glass-bright py-4 px-6 flex justify-around items-center z-50">
-                <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-white transition"><Package className="w-6 h-6" /><span className="text-xs mt-1">Beranda</span></Link>
-                <Link href="/order" className="relative -mt-8 bg-gradient-to-br from-blue-500 to-purple-600 p-5 rounded-2xl shadow-lg shadow-blue-500/30"><Package className="w-7 h-7 text-white" /></Link>
-                <Link href="/orders" className="flex flex-col items-center text-blue-400"><Clock className="w-6 h-6" /><span className="text-xs mt-1 font-medium">Pesanan</span></Link>
-            </nav>
         </main>
     )
 }
+

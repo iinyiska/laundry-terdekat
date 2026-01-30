@@ -93,13 +93,14 @@ export default function Home() {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1`)
             const data = await response.json()
             const addr = data.address || {}
-            setLocation({ city: addr.city || addr.town || 'Jakarta', kelurahan: addr.suburb || addr.village || 'Kelurahan' })
+            setLocation({ city: addr.city || addr.town || addr.state || 'Yogyakarta', kelurahan: addr.suburb || addr.village || addr.neighbourhood || 'Kelurahan' })
           } catch {
-            setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' })
+            setLocation({ city: 'Yogyakarta', kelurahan: 'Sosromenduran' })
           }
           setIsLocating(false)
         },
-        () => { setLocation({ city: 'Jakarta Pusat', kelurahan: 'Menteng' }); setIsLocating(false) }
+        () => { setLocation({ city: 'Yogyakarta', kelurahan: 'Sosromenduran' }); setIsLocating(false) },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
       )
     }
   }
@@ -121,7 +122,7 @@ export default function Home() {
   const featureColors = ['from-blue-500 to-cyan-400', 'from-green-500 to-emerald-400', 'from-orange-500 to-yellow-400', 'from-purple-500 to-pink-400']
 
   return (
-    <main className="min-h-screen pb-32 relative">
+    <main className="min-h-screen pb-nav relative">
       {/* Background */}
       <div className="fixed inset-0 -z-10 overflow-hidden" style={getBackground()}>
         {settings.bg_theme === 'gradient' && (

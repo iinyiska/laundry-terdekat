@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { MapPin, ChevronLeft, Navigation, Loader2, Zap, Package, Phone, MessageCircle, Clock, Check, AlertCircle } from 'lucide-react'
+import { MapPin, ChevronLeft, Navigation, Loader2, Zap, Package, Phone, MessageCircle, Clock, Check, AlertCircle, Minus, Plus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 type SiteSettings = {
@@ -60,8 +60,11 @@ export default function OrderPage() {
     const [isLocating, setIsLocating] = useState(false)
     const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     const [services, setServices] = useState<ServiceItem[]>([])
+
+    // Contact info - now in Step 3
     const [whatsapp, setWhatsapp] = useState('')
     const [customerName, setCustomerName] = useState('')
+    const [fullAddress, setFullAddress] = useState('')
     const [notes, setNotes] = useState('')
 
     // Kiloan items count
@@ -103,7 +106,7 @@ export default function OrderPage() {
                         const houseNumber = addr.house_number || ''
                         const building = addr.building || addr.amenity || ''
                         const kelurahan = addr.suburb || addr.village || addr.neighbourhood || ''
-                        const city = addr.city || addr.town || addr.county || ''
+                        const city = addr.city || addr.town || addr.county || addr.state || ''
 
                         // Format: Kota, Kelurahan, Jalan, No
                         const parts = []
@@ -118,18 +121,37 @@ export default function OrderPage() {
                         setLocation({
                             address: fullAddress,
                             kelurahan: kelurahan || 'Kelurahan',
-                            city: city || 'Kota',
+                            city: city || 'Yogyakarta',
                             lat: pos.coords.latitude,
                             lng: pos.coords.longitude
                         })
                     } catch {
-                        setLocation({ address: 'Jl. Contoh', kelurahan: 'Menteng', city: 'Jakarta Pusat', lat: -6.2, lng: 106.8 })
+                        // Fallback to Yogyakarta
+                        setLocation({
+                            address: 'Jl. Malioboro No. 52',
+                            kelurahan: 'Sosromenduran',
+                            city: 'Yogyakarta',
+                            lat: -7.7956,
+                            lng: 110.3695
+                        })
                     }
                     setIsLocating(false)
                 },
                 () => {
-                    setLocation({ address: 'Jl. Contoh', kelurahan: 'Menteng', city: 'Jakarta Pusat', lat: -6.2, lng: 106.8 })
+                    // Fallback to Yogyakarta
+                    setLocation({
+                        address: 'Jl. Malioboro No. 52',
+                        kelurahan: 'Sosromenduran',
+                        city: 'Yogyakarta',
+                        lat: -7.7956,
+                        lng: 110.3695
+                    })
                     setIsLocating(false)
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 60000
                 }
             )
         }
@@ -195,7 +217,7 @@ export default function OrderPage() {
                 order_number: orderNum,
                 customer_name: customerName,
                 customer_whatsapp: whatsapp,
-                pickup_address: location.address,
+                pickup_address: fullAddress || location.address,
                 pickup_kelurahan: location.kelurahan,
                 pickup_city: location.city,
                 pickup_latitude: location.lat,
@@ -232,7 +254,7 @@ export default function OrderPage() {
     // Success screen
     if (orderSuccess) {
         return (
-            <main className="min-h-screen flex items-center justify-center px-4">
+            <main className="min-h-screen flex items-center justify-center px-4 pb-nav">
                 <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
                 <div className="text-center max-w-md">
                     <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
@@ -252,7 +274,7 @@ export default function OrderPage() {
     }
 
     return (
-        <main className="min-h-screen pb-32">
+        <main className="min-h-screen pb-nav">
             <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
 
             {/* Header */}
@@ -268,7 +290,7 @@ export default function OrderPage() {
 
             <div className="px-4 max-w-2xl mx-auto py-6 space-y-6">
 
-                {/* Step 1: Location */}
+                {/* Step 1: Location + Service Type Selection */}
                 {step === 1 && (
                     <>
                         <div className="glass p-6">
@@ -293,30 +315,6 @@ export default function OrderPage() {
                             </div>
                         </div>
 
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-white mb-4 flex items-center gap-2"><MessageCircle className="w-5 h-5 text-green-400" />Data Pelanggan</h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm text-gray-400 mb-2 block">Nama Lengkap *</label>
-                                    <input className="input-glass w-full" placeholder="Nama Anda" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="text-sm text-gray-400 mb-2 block">Nomor WhatsApp *</label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                                        <input className="input-glass w-full pl-12" placeholder="08xxxxxxxxxx" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button onClick={() => setStep(2)} disabled={!location || !customerName || !whatsapp} className="btn-gradient w-full py-4 disabled:opacity-50">Lanjut Pilih Layanan</button>
-                    </>
-                )}
-
-                {/* Step 2: Service Selection */}
-                {step === 2 && (
-                    <>
                         <div className="glass p-6">
                             <h3 className="font-bold text-white mb-4">Jenis Layanan</h3>
                             <div className="grid grid-cols-2 gap-4">
@@ -349,26 +347,47 @@ export default function OrderPage() {
                             </div>
                         </div>
 
+                        <button onClick={() => setStep(2)} disabled={!location} className="btn-gradient w-full py-4 disabled:opacity-50">Lanjut Pilih Item</button>
+                    </>
+                )}
+
+                {/* Step 2: Item Selection */}
+                {step === 2 && (
+                    <>
                         {orderType === 'kiloan' && (
                             <div className="glass p-6">
                                 <h3 className="font-bold text-white mb-4">Berat & Detail Item</h3>
                                 <div className="mb-4">
                                     <label className="text-sm text-gray-400 mb-2 block">Perkiraan Berat (kg)</label>
                                     <div className="flex items-center gap-4">
-                                        <button onClick={() => setWeight(Math.max(1, weight - 1))} className="w-12 h-12 rounded-xl bg-white/10 text-xl">-</button>
+                                        <button onClick={() => setWeight(Math.max(1, weight - 1))} className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition">
+                                            <Minus className="w-6 h-6 text-white" />
+                                        </button>
                                         <span className="text-3xl font-bold text-white flex-1 text-center">{weight} kg</span>
-                                        <button onClick={() => setWeight(weight + 1)} className="w-12 h-12 rounded-xl bg-white/10 text-xl">+</button>
+                                        <button onClick={() => setWeight(weight + 1)} className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition">
+                                            <Plus className="w-6 h-6 text-white" />
+                                        </button>
                                     </div>
                                 </div>
                                 <p className="text-sm text-gray-400 mb-3">Detail item (opsional, untuk tracking):</p>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-2">
                                     {KILOAN_ITEMS.map(item => (
                                         <div key={item.key} className="flex items-center justify-between p-3 rounded-xl bg-white/5">
-                                            <span className="text-sm">{item.icon} {item.label}</span>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => setKiloanItems({ ...kiloanItems, [item.key]: Math.max(0, (kiloanItems[item.key] || 0) - 1) })} className="w-6 h-6 rounded bg-white/10 text-xs">-</button>
-                                                <span className="w-6 text-center">{kiloanItems[item.key] || 0}</span>
-                                                <button onClick={() => setKiloanItems({ ...kiloanItems, [item.key]: (kiloanItems[item.key] || 0) + 1 })} className="w-6 h-6 rounded bg-white/10 text-xs">+</button>
+                                            <span className="text-sm flex items-center gap-2"><span className="text-lg">{item.icon}</span> {item.label}</span>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => setKiloanItems({ ...kiloanItems, [item.key]: Math.max(0, (kiloanItems[item.key] || 0) - 1) })}
+                                                    className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
+                                                >
+                                                    <Minus className="w-4 h-4 text-white" />
+                                                </button>
+                                                <span className="w-8 text-center font-medium">{kiloanItems[item.key] || 0}</span>
+                                                <button
+                                                    onClick={() => setKiloanItems({ ...kiloanItems, [item.key]: (kiloanItems[item.key] || 0) + 1 })}
+                                                    className="w-8 h-8 rounded-lg bg-blue-500/30 flex items-center justify-center hover:bg-blue-500/50 transition"
+                                                >
+                                                    <Plus className="w-4 h-4 text-white" />
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
@@ -381,7 +400,7 @@ export default function OrderPage() {
                                 <h3 className="font-bold text-white mb-4">Pilih Item</h3>
                                 <div className="space-y-3">
                                     {services.map(s => (
-                                        <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+                                        <div key={s.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5">
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl">{s.icon}</span>
                                                 <div>
@@ -389,10 +408,20 @@ export default function OrderPage() {
                                                     <p className="text-sm text-blue-400">Rp {(serviceSpeed === 'express' ? s.price * 2 : s.price).toLocaleString()}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => setSatuanItems({ ...satuanItems, [s.id]: Math.max(0, (satuanItems[s.id] || 0) - 1) })} className="w-8 h-8 rounded-lg bg-white/10">-</button>
-                                                <span className="w-8 text-center">{satuanItems[s.id] || 0}</span>
-                                                <button onClick={() => setSatuanItems({ ...satuanItems, [s.id]: (satuanItems[s.id] || 0) + 1 })} className="w-8 h-8 rounded-lg bg-white/10">+</button>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => setSatuanItems({ ...satuanItems, [s.id]: Math.max(0, (satuanItems[s.id] || 0) - 1) })}
+                                                    className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
+                                                >
+                                                    <Minus className="w-5 h-5 text-white" />
+                                                </button>
+                                                <span className="w-8 text-center font-bold text-lg">{satuanItems[s.id] || 0}</span>
+                                                <button
+                                                    onClick={() => setSatuanItems({ ...satuanItems, [s.id]: (satuanItems[s.id] || 0) + 1 })}
+                                                    className="w-10 h-10 rounded-lg bg-blue-500/30 flex items-center justify-center hover:bg-blue-500/50 transition"
+                                                >
+                                                    <Plus className="w-5 h-5 text-white" />
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
@@ -400,22 +429,56 @@ export default function OrderPage() {
                             </div>
                         )}
 
+                        {/* Summary Preview */}
+                        <div className="glass p-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-400">Estimasi Total</span>
+                                <span className="text-xl font-bold text-green-400">Rp {calculateTotal().toLocaleString()}</span>
+                            </div>
+                        </div>
+
                         <div className="flex gap-4">
                             <button onClick={() => setStep(1)} className="glass px-6 py-4 rounded-xl">Kembali</button>
-                            <button onClick={() => setStep(3)} className="btn-gradient flex-1 py-4">Konfirmasi</button>
+                            <button onClick={() => setStep(3)} className="btn-gradient flex-1 py-4">Lanjut Data Diri</button>
                         </div>
                     </>
                 )}
 
-                {/* Step 3: Confirmation */}
+                {/* Step 3: Contact Info & Confirmation */}
                 {step === 3 && (
                     <>
                         <div className="glass p-6">
+                            <h3 className="font-bold text-white mb-4 flex items-center gap-2"><MessageCircle className="w-5 h-5 text-green-400" />Data Pemesan</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-2 block">Nama Lengkap *</label>
+                                    <input className="input-glass w-full" placeholder="Nama Anda" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-2 block">Nomor WhatsApp *</label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                        <input className="input-glass w-full pl-12" placeholder="08xxxxxxxxxx" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-sm text-gray-400 mb-2 block">Alamat Lengkap (untuk penjemputan)</label>
+                                    <textarea
+                                        className="input-glass w-full"
+                                        rows={2}
+                                        placeholder={location?.address || "Alamat lengkap..."}
+                                        value={fullAddress}
+                                        onChange={(e) => setFullAddress(e.target.value)}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Kosongkan jika sama dengan lokasi terdeteksi</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="glass p-6">
                             <h3 className="font-bold text-white mb-4">Ringkasan Pesanan</h3>
                             <div className="space-y-3 text-sm">
-                                <div className="flex justify-between"><span className="text-gray-400">Nama</span><span className="text-white">{customerName}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">WhatsApp</span><span className="text-white">{whatsapp}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-400">Lokasi</span><span className="text-white text-right">{location?.address}<br /><span className="text-gray-500">{location?.kelurahan}, {location?.city}</span></span></div>
+                                <div className="flex justify-between"><span className="text-gray-400">Lokasi</span><span className="text-white text-right max-w-[60%]">{location?.address}</span></div>
                                 <div className="border-t border-white/10 pt-3" />
                                 <div className="flex justify-between"><span className="text-gray-400">Jenis</span><span className="text-white capitalize">{orderType}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-400">Kecepatan</span><span className={serviceSpeed === 'express' ? 'text-yellow-400' : 'text-blue-400'}>{serviceSpeed === 'express' ? settings.express_label : settings.regular_label}</span></div>
@@ -439,7 +502,7 @@ export default function OrderPage() {
 
                         <div className="flex gap-4">
                             <button onClick={() => setStep(2)} className="glass px-6 py-4 rounded-xl">Kembali</button>
-                            <button onClick={handleSubmit} disabled={submitting} className="btn-gradient flex-1 py-4 flex items-center justify-center gap-2">
+                            <button onClick={handleSubmit} disabled={submitting || !customerName || !whatsapp} className="btn-gradient flex-1 py-4 flex items-center justify-center gap-2 disabled:opacity-50">
                                 {submitting ? <><Loader2 className="w-5 h-5 animate-spin" />Memproses...</> : <><Package className="w-5 h-5" />Order Sekarang</>}
                             </button>
                         </div>

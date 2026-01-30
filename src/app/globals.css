@@ -229,3 +229,13 @@ select:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
 }
+
+/* Safe Area for Bottom Navigation */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+}
+
+/* Ensure content doesn't hide behind bottom nav */
+.pb-nav {
+  padding-bottom: 100px;
+}
