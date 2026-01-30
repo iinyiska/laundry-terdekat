@@ -47,11 +47,26 @@ export default function OrdersPage() {
                 setLoading(false)
             } catch { }
         }
+
         loadOrders()
+
+        // Realtime Subscription
+        const channel = supabase
+            .channel('orders_realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' },
+                () => loadOrders() // Refresh when orders change
+            )
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
     }, [])
 
     const loadOrders = async () => {
-        // Only show full loading spinner if we have no data
+        // Get user for filtering
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        // Only show spinner if no cache
         if (!localStorage.getItem('laundry_orders_cache')) {
             setLoading(true)
         }
@@ -59,8 +74,9 @@ export default function OrdersPage() {
         const { data } = await supabase
             .from('orders')
             .select('*')
+            .eq('user_id', user.id) // Critical: Filter by user
             .order('created_at', { ascending: false })
-            .limit(20)
+            .limit(50)
 
         if (data) {
             setOrders(data)
@@ -70,6 +86,7 @@ export default function OrdersPage() {
     }
 
     const formatDate = (dateStr: string) => {
+        if (!dateStr) return ''
         const date = new Date(dateStr)
         return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     }
