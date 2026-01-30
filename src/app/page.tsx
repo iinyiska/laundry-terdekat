@@ -25,6 +25,8 @@ type SiteSettings = {
   express_eta: string
   bg_theme: string
   custom_bg_url: string
+  app_title: string
+  app_logo: string
 }
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -46,7 +48,9 @@ const DEFAULT_SETTINGS: SiteSettings = {
   express_label: 'Express (8 Jam)',
   express_eta: '8 jam',
   bg_theme: 'gradient',
-  custom_bg_url: ''
+  custom_bg_url: '',
+  app_title: 'Laundry Terdekat',
+  app_logo: ''
 }
 
 export default function Home() {
@@ -134,10 +138,14 @@ export default function Home() {
       <section className="relative pt-8 px-4 md:pt-16">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center floating" style={{ background: `linear-gradient(135deg, ${settings.primary_color}, ${settings.accent_color})` }}>
-              <Sparkles className="w-7 h-7 text-white" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center floating overflow-hidden" style={{ background: `linear-gradient(135deg, ${settings.primary_color}, ${settings.accent_color})` }}>
+              {settings.app_logo ? (
+                <img src={settings.app_logo} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <Sparkles className="w-7 h-7 text-white" />
+              )}
             </div>
-            <h1 className="text-3xl font-bold gradient-text">Laundry Terdekat</h1>
+            <h1 className="text-3xl font-bold gradient-text">{settings.app_title || 'Laundry Terdekat'}</h1>
           </div>
 
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight text-white">{settings.hero_title}</h2>
