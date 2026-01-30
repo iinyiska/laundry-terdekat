@@ -116,15 +116,15 @@ export default function SidebarMenu() {
                         })}
                     </nav>
 
-                    {/* Footer - Admin Link & Logout */}
+                    {/* Footer - Settings & Logout */}
                     <div className="p-4 border-t border-white/10 space-y-2">
                         <Link
-                            href="/admin"
+                            href="/settings"
                             onClick={() => setIsOpen(false)}
                             className="flex items-center gap-4 px-4 py-3 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all"
                         >
                             <Settings className="w-5 h-5" />
-                            <span className="text-sm">Admin Panel</span>
+                            <span className="text-sm">Pengaturan</span>
                         </Link>
 
                         {user && (

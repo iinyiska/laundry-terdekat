@@ -99,28 +99,60 @@ export default function OrderPage() {
             navigator.geolocation.getCurrentPosition(
                 async (pos) => {
                     try {
-                        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1`)
+                        // Use zoom=18 for street-level detail including house numbers
+                        const response = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1&zoom=18&extratags=1`
+                        )
                         const data = await response.json()
                         const addr = data.address || {}
-                        const road = addr.road || addr.pedestrian || ''
+
+                        // Extract address components
                         const houseNumber = addr.house_number || ''
-                        const building = addr.building || addr.amenity || ''
-                        const kelurahan = addr.suburb || addr.village || addr.neighbourhood || ''
-                        const city = addr.city || addr.town || addr.county || addr.state || ''
+                        const road = addr.road || addr.pedestrian || addr.footway || addr.path || ''
+                        const building = addr.building || addr.amenity || addr.shop || addr.office || ''
+                        const complex = addr.residential || addr.industrial || ''
+                        const neighbourhood = addr.neighbourhood || addr.hamlet || ''
+                        const kelurahan = addr.suburb || addr.village || addr.subdistrict || ''
+                        const kecamatan = addr.district || addr.city_district || ''
+                        const city = addr.city || addr.town || addr.municipality || addr.county || addr.state || ''
+                        const postcode = addr.postcode || ''
 
-                        // Format: Kota, Kelurahan, Jalan, No
-                        const parts = []
-                        if (city) parts.push(city)
-                        if (kelurahan) parts.push(kelurahan)
-                        if (road) parts.push(road)
-                        if (houseNumber) parts.push('No. ' + houseNumber)
-                        if (building) parts.push('(' + building + ')')
+                        // Build detailed address string
+                        const addressParts = []
 
-                        const fullAddress = parts.join(', ') || data.display_name
+                        // Primary: Street and number
+                        if (road) {
+                            let streetAddr = road
+                            if (houseNumber) streetAddr += ' No. ' + houseNumber
+                            addressParts.push(streetAddr)
+                        }
+
+                        // Building/Complex name
+                        if (building) addressParts.push(building)
+                        if (complex && complex !== building) addressParts.push(complex)
+
+                        // Neighbourhood
+                        if (neighbourhood && neighbourhood !== kelurahan) addressParts.push(neighbourhood)
+
+                        // Kelurahan/Desa
+                        if (kelurahan) addressParts.push(kelurahan)
+
+                        // Kecamatan
+                        if (kecamatan && kecamatan !== kelurahan) addressParts.push(kecamatan)
+
+                        // City
+                        if (city) addressParts.push(city)
+
+                        // Postcode
+                        if (postcode) addressParts.push(postcode)
+
+                        const fullAddress = addressParts.length > 0
+                            ? addressParts.join(', ')
+                            : data.display_name
 
                         setLocation({
                             address: fullAddress,
-                            kelurahan: kelurahan || 'Kelurahan',
+                            kelurahan: kelurahan || neighbourhood || 'Kelurahan',
                             city: city || 'Yogyakarta',
                             lat: pos.coords.latitude,
                             lng: pos.coords.longitude
@@ -128,7 +160,7 @@ export default function OrderPage() {
                     } catch {
                         // Fallback to Yogyakarta
                         setLocation({
-                            address: 'Jl. Malioboro No. 52',
+                            address: 'Jl. Malioboro No. 52, Sosromenduran, Yogyakarta',
                             kelurahan: 'Sosromenduran',
                             city: 'Yogyakarta',
                             lat: -7.7956,
@@ -140,7 +172,7 @@ export default function OrderPage() {
                 () => {
                     // Fallback to Yogyakarta
                     setLocation({
-                        address: 'Jl. Malioboro No. 52',
+                        address: 'Jl. Malioboro No. 52, Sosromenduran, Yogyakarta',
                         kelurahan: 'Sosromenduran',
                         city: 'Yogyakarta',
                         lat: -7.7956,
@@ -150,8 +182,8 @@ export default function OrderPage() {
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 60000
+                    timeout: 10000,
+                    maximumAge: 0 // Always get fresh location
                 }
             )
         }
