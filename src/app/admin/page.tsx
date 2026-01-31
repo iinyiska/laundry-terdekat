@@ -273,36 +273,57 @@ export default function AdminPage() {
 
     const updateUserRole = async (userId: string, newRole: string) => {
         console.log('[Admin] Updating role for', userId, 'to', newRole)
+
+        // OPTIMISTIC UPDATE - Update UI immediately
+        setUsers(prevUsers =>
+            prevUsers.map(u => u.id === userId ? { ...u, role: newRole } : u)
+        )
+
         try {
             const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
             if (error) {
                 console.error('[Admin] Role update error:', error)
                 showStatus('error', `Role update failed: ${error.message}`)
-            } else {
-                showStatus('success', 'Role updated!')
+                // Revert optimistic update on error
                 loadUsers()
+            } else {
+                console.log('[Admin] Role updated successfully!')
+                showStatus('success', `Role diubah ke ${newRole}!`)
+                // Refresh after 1 second to confirm
+                setTimeout(() => loadUsers(), 1000)
             }
         } catch (e: any) {
             console.error('[Admin] Role exception:', e)
             showStatus('error', e.message)
+            // Revert on exception
+            loadUsers()
         }
     }
 
     const deleteUser = async (userId: string) => {
         if (!confirm('Hapus user ini?')) return
         console.log('[Admin] Deleting user', userId)
+
+        // OPTIMISTIC DELETE - Remove from UI immediately
+        setUsers(prevUsers => prevUsers.filter(u => u.id !== userId))
+
         try {
             const { error } = await supabase.from('profiles').delete().eq('id', userId)
             if (error) {
                 console.error('[Admin] Delete error:', error)
                 showStatus('error', `Delete failed: ${error.message}`)
+                // Revert on error
+                loadUsers()
             } else {
                 showStatus('success', 'User deleted!')
-                loadUsers()
+                // Confirm after 500ms
+                setTimeout(() => loadUsers(), 500)
             }
         } catch (e: any) {
             console.error('[Admin] Delete exception:', e)
             showStatus('error', e.message)
+            // Revert on exception
+            loadUsers()
         }
     }
 
