@@ -288,9 +288,9 @@ export default function AdminPage() {
                 loadUsers()
             } else {
                 console.log('[Admin] Role updated successfully!')
-                showStatus('success', `Role diubah ke ${newRole}!`)
-                // Refresh after 1 second to confirm
-                setTimeout(() => loadUsers(), 1000)
+                showStatus('success', `✅ Role diubah ke ${newRole}!`)
+                // DON'T RELOAD - Keep optimistic update as final state!
+                // The optimistic update IS the correct state now
             }
         } catch (e: any) {
             console.error('[Admin] Role exception:', e)
@@ -315,9 +315,8 @@ export default function AdminPage() {
                 // Revert on error
                 loadUsers()
             } else {
-                showStatus('success', 'User deleted!')
-                // Confirm after 500ms
-                setTimeout(() => loadUsers(), 500)
+                showStatus('success', '✅ User deleted!')
+                // DON'T RELOAD - Optimistic delete is final!
             }
         } catch (e: any) {
             console.error('[Admin] Delete exception:', e)
