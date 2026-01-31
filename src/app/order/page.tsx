@@ -93,101 +93,52 @@ export default function OrderPage() {
         if (svc) setServices(svc)
     }
 
-    const getLocation = () => {
+
+    const getLocation = async () => {
         setIsLocating(true)
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    try {
-                        // Use zoom=18 for street-level detail including house numbers
-                        const response = await fetch(
-                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&addressdetails=1&zoom=18&extratags=1`
-                        )
-                        const data = await response.json()
-                        const addr = data.address || {}
 
-                        // Extract address components
-                        const houseNumber = addr.house_number || ''
-                        const road = addr.road || addr.pedestrian || addr.footway || addr.path || ''
-                        const building = addr.building || addr.amenity || addr.shop || addr.office || ''
-                        const complex = addr.residential || addr.industrial || ''
-                        const neighbourhood = addr.neighbourhood || addr.hamlet || ''
-                        const kelurahan = addr.suburb || addr.village || addr.subdistrict || ''
-                        const kecamatan = addr.district || addr.city_district || ''
-                        const city = addr.city || addr.town || addr.municipality || addr.county || addr.state || ''
-                        const postcode = addr.postcode || ''
+        try {
+            // Import geolocation utilities
+            const { getCurrentLocation, reverseGeocode, buildDetailedAddress } = await import('@/utils/geolocation')
 
-                        // Build detailed address string
-                        const addressParts = []
+            // Get current position (works on both web and native)
+            const coords = await getCurrentLocation()
 
-                        // Primary: Street and number
-                        if (road) {
-                            let streetAddr = road
-                            if (houseNumber) streetAddr += ' No. ' + houseNumber
-                            addressParts.push(streetAddr)
-                        }
+            // Reverse geocode to get address
+            const data = await reverseGeocode(coords.latitude, coords.longitude)
+            const addr = data.address || {}
 
-                        // Building/Complex name
-                        if (building) addressParts.push(building)
-                        if (complex && complex !== building) addressParts.push(complex)
+            // Build detailed address
+            const fullAddress = buildDetailedAddress(addr) || data.display_name
 
-                        // Neighbourhood
-                        if (neighbourhood && neighbourhood !== kelurahan) addressParts.push(neighbourhood)
+            const kelurahan = addr.suburb || addr.village || addr.subdistrict || addr.neighbourhood || ''
+            const neighbourhood = addr.neighbourhood || addr.hamlet || ''
+            const city = addr.city || addr.town || addr.municipality || addr.county || addr.state || ''
 
-                        // Kelurahan/Desa
-                        if (kelurahan) addressParts.push(kelurahan)
+            console.log('[Geocoding] Final address:', fullAddress)
 
-                        // Kecamatan
-                        if (kecamatan && kecamatan !== kelurahan) addressParts.push(kecamatan)
-
-                        // City
-                        if (city) addressParts.push(city)
-
-                        // Postcode
-                        if (postcode) addressParts.push(postcode)
-
-                        const fullAddress = addressParts.length > 0
-                            ? addressParts.join(', ')
-                            : data.display_name
-
-                        setLocation({
-                            address: fullAddress,
-                            kelurahan: kelurahan || neighbourhood || 'Kelurahan',
-                            city: city || 'Yogyakarta',
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude
-                        })
-                    } catch {
-                        // Fallback to Yogyakarta
-                        setLocation({
-                            address: 'Jl. Malioboro No. 52, Sosromenduran, Yogyakarta',
-                            kelurahan: 'Sosromenduran',
-                            city: 'Yogyakarta',
-                            lat: -7.7956,
-                            lng: 110.3695
-                        })
-                    }
-                    setIsLocating(false)
-                },
-                () => {
-                    // Fallback to Yogyakarta
-                    setLocation({
-                        address: 'Jl. Malioboro No. 52, Sosromenduran, Yogyakarta',
-                        kelurahan: 'Sosromenduran',
-                        city: 'Yogyakarta',
-                        lat: -7.7956,
-                        lng: 110.3695
-                    })
-                    setIsLocating(false)
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0 // Always get fresh location
-                }
-            )
+            setLocation({
+                address: fullAddress,
+                kelurahan: kelurahan || neighbourhood || 'Kelurahan',
+                city: city || 'Yogyakarta',
+                lat: coords.latitude,
+                lng: coords.longitude
+            })
+        } catch (error: any) {
+            console.error('[Location] Error:', error)
+            // Fallback to Yogyakarta
+            setLocation({
+                address: 'Jl. Malioboro No. 52, Sosromenduran, Yogyakarta',
+                kelurahan: 'Sosromenduran',
+                city: 'Yogyakarta',
+                lat: -7.7956,
+                lng: 110.3695
+            })
         }
+
+        setIsLocating(false)
     }
+
 
     const calculateTotal = () => {
         if (orderType === 'kiloan') {

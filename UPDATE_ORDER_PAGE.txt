@@ -1,0 +1,47 @@
+// Update getLocation in order/page.tsx to use geolocation utility
+// Replace lines 96-185 with this:
+
+const getLocation = async () => {
+    setIsLocating(true)
+    
+    try {
+        // Import geolocation utilities
+        const { getCurrentLocation, reverseGeocode, buildDetailedAddress } = await import('@/utils/geolocation')
+        
+        // Get current position (works on both web and native)
+        const coords = await getCurrentLocation()
+        
+        // Reverse geocode to get address
+        const data = await reverseGeocode(coords.latitude, coords.longitude)
+        const addr = data.address || {}
+        
+        // Build detailed address
+        const fullAddress = buildDetailedAddress(addr) || data.display_name
+        
+        const kelurahan = addr.suburb || addr.village || addr.subdistrict || addr.neighbourhood || ''
+        const neighbourhood = addr.neighbourhood || addr.hamlet || ''
+        const city = addr.city || addr.town || addr.municipality || addr.county || addr.state || ''
+        
+        console.log('[Geocoding] Final address:', fullAddress)
+        
+        setLocation({
+            address: fullAddress,
+            kelurahan: kelurahan || neighbourhood || 'Kelurahan',
+            city: city || 'Yogyakarta',
+            lat: coords.latitude,
+            lng: coords.longitude
+        })
+    } catch (error: any) {
+        console.error('[Location] Error:', error)
+        // Fallback to Yogyakarta
+        setLocation({
+            address: 'Jl. Malioboro No. 52, Sosromenduran, Yogyakarta',
+            kelurahan: 'Sosromenduran',
+            city: 'Yogyakarta',
+            lat: -7.7956,
+            lng: 110.3695
+        })
+    }
+    
+    setIsLocating(false)
+}
