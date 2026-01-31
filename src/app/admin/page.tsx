@@ -195,13 +195,46 @@ export default function AdminPage() {
 
     const loadUsers = async () => {
         setUsersLoading(true)
-        try { const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }); if (data) setUsers(data) } catch { }
+        console.log('[Admin] Loading users...')
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .order('created_at', { ascending: false })
+
+            if (error) {
+                console.error('[Admin] Users load error:', error)
+                showStatus('error', `User load failed: ${error.message}`)
+            } else if (data) {
+                console.log('[Admin] Users loaded:', data.length)
+                setUsers(data)
+            }
+        } catch (e: any) {
+            console.error('[Admin] Users exception:', e)
+        }
         setUsersLoading(false)
     }
 
     const loadOrders = async () => {
         setOrdersLoading(true)
-        try { const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(100); if (data) setOrders(data) } catch { }
+        console.log('[Admin] Loading orders...')
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(100)
+
+            if (error) {
+                console.error('[Admin] Orders load error:', error)
+                showStatus('error', `Orders load failed: ${error.message}`)
+            } else if (data) {
+                console.log('[Admin] Orders loaded:', data.length)
+                setOrders(data)
+            }
+        } catch (e: any) {
+            console.error('[Admin] Orders exception:', e)
+        }
         setOrdersLoading(false)
     }
 
