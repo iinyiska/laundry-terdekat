@@ -6,8 +6,9 @@ const config: CapacitorConfig = {
     webDir: 'out',
     server: {
         androidScheme: 'https',
-        // Use production URL so OAuth redirects work
-        url: 'https://laundry-terdekat.vercel.app',
+        // REMOVED: Using remote URL breaks native plugin detection!
+        // For native plugins to work, app MUST load from local assets (webDir)
+        // url: 'https://laundry-terdekat.vercel.app',
         cleartext: true
     },
     plugins: {
