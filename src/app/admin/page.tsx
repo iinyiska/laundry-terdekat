@@ -193,16 +193,25 @@ export default function AdminPage() {
         } catch (e: any) { showStatus('error', e.message) }
     }
 
-    const loadUsers = async () => {
+    const loadUsers = async (retryCount = 0) => {
         setUsersLoading(true)
-        console.log('[Admin] Loading users...')
+        console.log('[Admin] Loading users... (attempt', retryCount + 1, ')')
         try {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .order('created_at', { ascending: false })
+                .abortSignal(undefined as any) // Disable abort signal
 
             if (error) {
+                // Ignore AbortError
+                if (error.message?.includes('abort')) {
+                    console.log('[Admin] Users request aborted, retrying...')
+                    if (retryCount < 2) {
+                        setTimeout(() => loadUsers(retryCount + 1), 500)
+                        return
+                    }
+                }
                 console.error('[Admin] Users load error:', error)
                 showStatus('error', `User load failed: ${error.message}`)
             } else if (data) {
@@ -210,22 +219,39 @@ export default function AdminPage() {
                 setUsers(data)
             }
         } catch (e: any) {
+            // Ignore AbortError exception
+            if (e.name === 'AbortError' || e.message?.includes('abort')) {
+                console.log('[Admin] Users aborted, retrying...')
+                if (retryCount < 2) {
+                    setTimeout(() => loadUsers(retryCount + 1), 500)
+                    return
+                }
+            }
             console.error('[Admin] Users exception:', e)
         }
         setUsersLoading(false)
     }
 
-    const loadOrders = async () => {
+    const loadOrders = async (retryCount = 0) => {
         setOrdersLoading(true)
-        console.log('[Admin] Loading orders...')
+        console.log('[Admin] Loading orders... (attempt', retryCount + 1, ')')
         try {
             const { data, error } = await supabase
                 .from('orders')
                 .select('*')
                 .order('created_at', { ascending: false })
                 .limit(100)
+                .abortSignal(undefined as any) // Disable abort signal
 
             if (error) {
+                // Ignore AbortError
+                if (error.message?.includes('abort')) {
+                    console.log('[Admin] Orders request aborted, retrying...')
+                    if (retryCount < 2) {
+                        setTimeout(() => loadOrders(retryCount + 1), 500)
+                        return
+                    }
+                }
                 console.error('[Admin] Orders load error:', error)
                 showStatus('error', `Orders load failed: ${error.message}`)
             } else if (data) {
@@ -233,6 +259,14 @@ export default function AdminPage() {
                 setOrders(data)
             }
         } catch (e: any) {
+            // Ignore AbortError exception
+            if (e.name === 'AbortError' || e.message?.includes('abort')) {
+                console.log('[Admin] Orders aborted, retrying...')
+                if (retryCount < 2) {
+                    setTimeout(() => loadOrders(retryCount + 1), 500)
+                    return
+                }
+            }
             console.error('[Admin] Orders exception:', e)
         }
         setOrdersLoading(false)
