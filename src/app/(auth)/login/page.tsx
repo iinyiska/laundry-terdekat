@@ -70,10 +70,13 @@ export default function LoginPage() {
                     localStorage.setItem('laundry_profile_cache', JSON.stringify({ user, profile }))
                 }
 
-                if (profile?.role === 'merchant') {
+                // Role-based redirect
+                if (profile?.role === 'admin') {
+                    router.push('/admin')
+                } else if (profile?.role === 'merchant') {
                     router.push('/merchant/dashboard')
                 } else {
-                    router.push('/')
+                    router.push('/') // Customer → Homepage
                 }
             }
         }

@@ -70,9 +70,13 @@ export default function MerchantDashboard() {
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single()
             if (profileData) setProfile(profileData)
 
-            // Check if merchant
+            // Check if merchant or admin
             if (profileData?.role !== 'merchant' && profileData?.role !== 'admin') {
-                setNotification('Akun ini bukan Merchant. Hubungi Admin untuk upgrade.')
+                setNotification('⚠️ Akses ditolak! Hanya Merchant & Admin yang bisa akses halaman ini.')
+                setTimeout(() => {
+                    window.location.href = '/'
+                }, 2000)
+                return
             }
 
             fetchOrders(user.id)
