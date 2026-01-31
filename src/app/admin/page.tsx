@@ -239,7 +239,13 @@ export default function AdminPage() {
 
     const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file || !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) return
+        if (!file || !file.type.startsWith('image/')) return
+
+        // Critical Fix: Limit to 1.5MB to avoid LocalStorage crash
+        if (file.size > 1.5 * 1024 * 1024) {
+            showStatus('error', 'File terlalu besar! Max 1.5MB');
+            return;
+        }
 
         setUploading(true)
         const reader = new FileReader()
@@ -251,8 +257,13 @@ export default function AdminPage() {
             const newSettings = { ...settings, custom_bg_url: base64, bg_theme: 'custom' }
             setSettings(newSettings)
 
-            // 2. Update LocalStorage (Instant feedback)
-            localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
+            // 2. Update LocalStorage (Safe Mode)
+            try {
+                localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
+            } catch (e) {
+                console.error('LocalStorage full:', e)
+                // Don't stop execution, continue to Supabase
+            }
 
             // 3. Sync to Supabase (Persistence)
             try {
@@ -431,31 +442,38 @@ export default function AdminPage() {
                                         <div><p className="text-gray-500 text-sm">Alamat</p><p className="text-white">{selectedOrder.pickup_address}</p></div>
                                         {selectedOrder.notes && <div><p className="text-gray-500 text-sm">Catatan</p><p className="text-white">{selectedOrder.notes}</p></div>}
 
-                                        {/* ITEMS DETAIL SECTION */}
                                         <div className="bg-white/5 p-4 rounded-xl">
                                             <p className="text-gray-400 text-sm mb-2 font-bold mb-2">Detail Item</p>
-                                            {selectedOrder.order_type === 'satuan' && selectedOrder.items && selectedOrder.items.length > 0 ? (
-                                                <div className="space-y-2">
-                                                    {selectedOrder.items.map((item: any, idx: number) => (
-                                                        <div key={idx} className="flex justify-between text-sm">
-                                                            <span className="text-white">{item.qty}x {item.name}</span>
-                                                            <span className="text-gray-400">Rp {item.price?.toLocaleString()}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : selectedOrder.order_type === 'kiloan' && selectedOrder.items_detail ? (
-                                                <div className="space-y-2">
-                                                    {Object.entries(selectedOrder.items_detail).map(([key, qty]: [string, any]) => (
-                                                        qty > 0 && (
-                                                            <div key={key} className="flex justify-between text-sm">
-                                                                <span className="text-white capitalize">{key.replace(/_/g, ' ')}</span>
-                                                                <span className="text-gray-400">{qty} pcs</span>
+
+                                            {/* Debug info: remove in production if unneeded, helps verify data */}
+                                            {/* <p className="text-xs text-gray-600 mb-2">Type: {selectedOrder.order_type}, Items: {selectedOrder.items?.length}</p> */}
+
+                                            {selectedOrder.order_type === 'satuan' ? (
+                                                selectedOrder.items && selectedOrder.items.length > 0 ? (
+                                                    <div className="space-y-2">
+                                                        {selectedOrder.items.map((item: any, idx: number) => (
+                                                            <div key={idx} className="flex justify-between text-sm border-b border-white/10 pb-1 last:border-0">
+                                                                <span className="text-white">{item.qty}x {item.name}</span>
+                                                                <span className="text-gray-400">Rp {item.price?.toLocaleString()}</span>
                                                             </div>
-                                                        )
-                                                    ))}
-                                                </div>
+                                                        ))}
+                                                    </div>
+                                                ) : <p className="text-gray-500 text-sm italic">Item satuan kosong (Cek DB)</p>
+                                            ) : selectedOrder.order_type === 'kiloan' ? (
+                                                selectedOrder.items_detail ? (
+                                                    <div className="space-y-2">
+                                                        {Object.entries(selectedOrder.items_detail).map(([key, qty]: [string, any]) => (
+                                                            qty > 0 && (
+                                                                <div key={key} className="flex justify-between text-sm">
+                                                                    <span className="text-white capitalize">{key.replace(/_/g, ' ')}</span>
+                                                                    <span className="text-gray-400">{qty} pcs</span>
+                                                                </div>
+                                                            )
+                                                        ))}
+                                                    </div>
+                                                ) : <p className="text-gray-500 text-sm italic">Tidak ada detail kiloan</p>
                                             ) : (
-                                                <p className="text-gray-500 text-sm italic">Tidak ada detail item</p>
+                                                <p className="text-gray-500 text-sm italic">Tipe order tidak diketahui</p>
                                             )}
                                         </div>
                                         <div className="pt-4 border-t border-white/10 space-y-4">
