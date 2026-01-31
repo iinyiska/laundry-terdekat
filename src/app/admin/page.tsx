@@ -272,12 +272,38 @@ export default function AdminPage() {
     }
 
     const updateUserRole = async (userId: string, newRole: string) => {
-        try { await supabase.from('profiles').update({ role: newRole }).eq('id', userId); showStatus('success', 'Role updated!'); loadUsers() } catch (e: any) { showStatus('error', e.message) }
+        console.log('[Admin] Updating role for', userId, 'to', newRole)
+        try {
+            const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
+            if (error) {
+                console.error('[Admin] Role update error:', error)
+                showStatus('error', `Role update failed: ${error.message}`)
+            } else {
+                showStatus('success', 'Role updated!')
+                loadUsers()
+            }
+        } catch (e: any) {
+            console.error('[Admin] Role exception:', e)
+            showStatus('error', e.message)
+        }
     }
 
     const deleteUser = async (userId: string) => {
         if (!confirm('Hapus user ini?')) return
-        try { await supabase.from('profiles').delete().eq('id', userId); showStatus('success', 'User deleted!'); loadUsers() } catch (e: any) { showStatus('error', e.message) }
+        console.log('[Admin] Deleting user', userId)
+        try {
+            const { error } = await supabase.from('profiles').delete().eq('id', userId)
+            if (error) {
+                console.error('[Admin] Delete error:', error)
+                showStatus('error', `Delete failed: ${error.message}`)
+            } else {
+                showStatus('success', 'User deleted!')
+                loadUsers()
+            }
+        } catch (e: any) {
+            console.error('[Admin] Delete exception:', e)
+            showStatus('error', e.message)
+        }
     }
 
     const updateOrderStatus = async (orderId: string, newStatus: string) => {
