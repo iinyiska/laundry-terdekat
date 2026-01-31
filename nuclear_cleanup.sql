@@ -67,11 +67,17 @@ CREATE POLICY "orders_insert" ON public.orders FOR INSERT WITH CHECK ((select au
 CREATE POLICY "orders_update" ON public.orders FOR UPDATE USING ((select auth.uid()) IS NOT NULL);
 CREATE POLICY "orders_delete" ON public.orders FOR DELETE USING ((select auth.uid()) IS NOT NULL);
 
--- PROFILES: Public read, self-write
+-- PROFILES: Public read, self-write OR admin can write any
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT WITH CHECK ((select auth.uid()) = id);
-CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING ((select auth.uid()) = id);
+CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (
+    (select auth.uid()) = id 
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = (select auth.uid()) AND role = 'admin')
+);
+CREATE POLICY "profiles_delete" ON public.profiles FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = (select auth.uid()) AND role = 'admin')
+);
 
 -- SITE_SETTINGS: Full public access (admin check in code)
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
