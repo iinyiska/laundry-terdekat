@@ -13,11 +13,13 @@ type UserProfile = {
     phone: string | null
     address: string | null
     avatar_url: string | null
+    role?: string
 }
 
 export default function AccountPage() {
     const [user, setUser] = useState<any>(null)
     const [profile, setProfile] = useState<UserProfile | null>(null)
+    const [role, setRole] = useState<string>('customer')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [success, setSuccess] = useState(false)
@@ -46,6 +48,7 @@ export default function AccountPage() {
                     setUser(cachedUser)
                     if (cachedProfile) {
                         setProfile(cachedProfile)
+                        setRole(cachedProfile.role || 'customer')
                         setFullName(cachedProfile.full_name || cachedUser.user_metadata?.full_name || '')
                         setPhone(cachedProfile.phone || '')
                         setAddress(cachedProfile.address || '')
@@ -80,6 +83,8 @@ export default function AccountPage() {
 
             if (profileData) {
                 setProfile(profileData)
+                setRole(profileData.role || 'customer')
+
                 // Only update form fields if user isn't typing (though usually this runs on mount)
                 setFullName(profileData.full_name || user.user_metadata?.full_name || '')
                 setPhone(profileData.phone || '')
@@ -277,6 +282,36 @@ export default function AccountPage() {
                 <div className="glass p-6">
                     <h3 className="font-bold text-white mb-4">Menu Lainnya</h3>
                     <div className="space-y-2">
+                        {role === 'admin' && (
+                            <Link href="/admin" className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 hover:border-red-500/50 transition mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center">
+                                        <div className="w-4 h-4 text-white">🛡️</div>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-white">Admin Panel</p>
+                                        <p className="text-xs text-red-300">Kelola User & Order</p>
+                                    </div>
+                                </div>
+                                <ChevronLeft className="w-5 h-5 rotate-180 text-red-400" />
+                            </Link>
+                        )}
+
+                        {role === 'merchant' && (
+                            <Link href="/merchant/dashboard" className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 hover:border-purple-500/50 transition mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center">
+                                        <div className="w-4 h-4 text-white">🏪</div>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-white">Merchant Panel</p>
+                                        <p className="text-xs text-purple-300">Kelola Pesanan Masuk</p>
+                                    </div>
+                                </div>
+                                <ChevronLeft className="w-5 h-5 rotate-180 text-purple-400" />
+                            </Link>
+                        )}
+
                         <Link href="/orders" className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition">
                             <span className="text-white">Riwayat Pesanan</span>
                             <ChevronLeft className="w-5 h-5 rotate-180 text-gray-400" />

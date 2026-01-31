@@ -16,16 +16,16 @@ const navItems = [
 export default function SidebarMenu() {
     const [isOpen, setIsOpen] = useState(false)
     const [user, setUser] = useState<any>(null)
+    const [role, setRole] = useState<string>('customer')
     const pathname = usePathname()
     const supabase = createClient()
 
     useEffect(() => {
-        // Initial check
         checkUser()
 
-        // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setUser(session?.user || null)
+            if (session?.user) fetchRole(session.user.id)
         })
 
         return () => subscription.unsubscribe()
@@ -34,11 +34,30 @@ export default function SidebarMenu() {
     const checkUser = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         setUser(user)
+        if (user) fetchRole(user.id)
+    }
+
+    const fetchRole = async (userId: string) => {
+        try {
+            const { data } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .single()
+            if (data) setRole(data.role || 'customer')
+        } catch { }
     }
 
     const handleLogout = async () => {
+        // Clear all caches
+        localStorage.removeItem('laundry_user_cache')
+        localStorage.removeItem('laundry_profile_cache')
+        localStorage.removeItem('laundry_orders_cache')
+        localStorage.removeItem('laundry_settings')
+
         await supabase.auth.signOut()
         setUser(null)
+        setRole('customer')
         setIsOpen(false)
         window.location.href = '/'
     }
@@ -122,6 +141,30 @@ export default function SidebarMenu() {
                                 </Link>
                             )
                         })}
+
+                        {/* Admin Link */}
+                        {role === 'admin' && (
+                            <Link
+                                href="/admin"
+                                onClick={() => setIsOpen(false)}
+                                className="flex items-center gap-4 px-6 py-4 text-red-300 hover:bg-red-500/10 hover:text-red-200 transition-all"
+                            >
+                                <div className="w-5 h-5">🛡️</div>
+                                <span className="font-medium">Admin Panel</span>
+                            </Link>
+                        )}
+
+                        {/* Merchant Link */}
+                        {role === 'merchant' && (
+                            <Link
+                                href="/merchant/dashboard"
+                                onClick={() => setIsOpen(false)}
+                                className="flex items-center gap-4 px-6 py-4 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200 transition-all"
+                            >
+                                <div className="w-5 h-5">🏪</div>
+                                <span className="font-medium">Merchant Panel</span>
+                            </Link>
+                        )}
                     </nav>
 
                     {/* Footer - Settings & Logout */}

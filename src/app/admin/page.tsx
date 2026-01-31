@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Lock, Check, X, Home, FileText, Zap, Image, Layout, Upload, RefreshCw, AlertCircle } from 'lucide-react'
+import { Shield, Save, Plus, Trash2, Edit2, ChevronLeft, Palette, Type, Gift, Package, Lock, Check, X, Home, FileText, Zap, Layout, Upload, RefreshCw, AlertCircle, Users, ClipboardList, Phone, Mail, MapPin, Eye } from 'lucide-react'
 import Link from 'next/link'
 
 const ADMIN_PASSWORD = 'admin123laundry'
@@ -45,9 +45,35 @@ type PlatformService = {
     sort_order: number
 }
 
+type UserProfile = {
+    id: string
+    email?: string
+    full_name?: string
+    phone?: string
+    role?: string
+    created_at?: string
+}
+
+type Order = {
+    id: string
+    order_number: string
+    customer_name: string
+    customer_whatsapp: string
+    pickup_address: string
+    order_type: string
+    service_speed: string
+    status: string
+    total: number
+    weight_kg?: number
+    created_at: string
+    user_id?: string
+    merchant_id?: string
+    notes?: string
+}
+
 const DEFAULT_SETTINGS: SiteSettings = {
     hero_title: 'Cuci Bersih, Wangi Sempurna',
-    hero_subtitle: 'Platform laundry paling canggih dengan deteksi lokasi otomatis, antar-jemput gratis, dan diskon hingga 20% untuk member.',
+    hero_subtitle: 'Platform laundry paling canggih dengan deteksi lokasi otomatis.',
     promo_text: 'Diskon 20% untuk Member Baru!',
     promo_enabled: true,
     primary_color: '#3b82f6',
@@ -81,19 +107,37 @@ const BG_THEMES = [
     { id: 'custom', name: 'Custom Upload', preview: '' },
 ]
 
+const STATUS_OPTIONS = [
+    { value: 'pending', label: 'Menunggu', color: 'bg-yellow-500' },
+    { value: 'confirmed', label: 'Dikonfirmasi', color: 'bg-blue-500' },
+    { value: 'pickup', label: 'Dijemput', color: 'bg-cyan-500' },
+    { value: 'washing', label: 'Dicuci', color: 'bg-blue-400' },
+    { value: 'drying', label: 'Dikeringkan', color: 'bg-orange-500' },
+    { value: 'ironing', label: 'Disetrika', color: 'bg-purple-500' },
+    { value: 'ready', label: 'Siap Antar', color: 'bg-green-400' },
+    { value: 'delivery', label: 'Diantar', color: 'bg-cyan-400' },
+    { value: 'completed', label: 'Selesai', color: 'bg-green-500' },
+    { value: 'cancelled', label: 'Dibatalkan', color: 'bg-red-500' },
+]
+
 export default function AdminPage() {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [password, setPassword] = useState('')
     const [authError, setAuthError] = useState('')
-    const [activeTab, setActiveTab] = useState<'home' | 'content' | 'services' | 'theme' | 'settings'>('theme')
+    const [activeTab, setActiveTab] = useState<'orders' | 'users' | 'theme' | 'home' | 'content' | 'services' | 'settings'>('orders')
     const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     const [services, setServices] = useState<PlatformService[]>([])
-    const [editingService, setEditingService] = useState<PlatformService | null>(null)
     const [newService, setNewService] = useState<Partial<PlatformService>>({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', is_active: true })
     const [saving, setSaving] = useState(false)
     const [status, setStatus] = useState({ type: '', msg: '' })
     const [uploading, setUploading] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [users, setUsers] = useState<UserProfile[]>([])
+    const [usersLoading, setUsersLoading] = useState(false)
+    const [orders, setOrders] = useState<Order[]>([])
+    const [ordersLoading, setOrdersLoading] = useState(false)
+    const [orderFilter, setOrderFilter] = useState('all')
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
     const supabase = createClient()
 
     useEffect(() => {
@@ -115,155 +159,121 @@ export default function AdminPage() {
 
     const showStatus = (type: 'success' | 'error' | 'info', msg: string) => {
         setStatus({ type, msg })
-        if (type === 'success') {
-            setTimeout(() => setStatus({ type: '', msg: '' }), 3000)
-        }
+        if (type === 'success') setTimeout(() => setStatus({ type: '', msg: '' }), 3000)
+    }
+
+    const [merchants, setMerchants] = useState<UserProfile[]>([])
+
+    // Load merchants
+    const loadMerchants = async () => {
+        const { data } = await supabase.from('profiles').select('*').eq('role', 'merchant')
+        if (data) setMerchants(data)
     }
 
     const loadData = async () => {
-        showStatus('info', 'Loading data...')
+        showStatus('info', 'Loading...')
+        try { const { data: s } = await supabase.from('site_settings').select('*').eq('id', 'main').single(); if (s) setSettings({ ...DEFAULT_SETTINGS, ...s }) } catch { }
+        try { const { data: svc } = await supabase.from('platform_services').select('*').order('sort_order'); if (svc) setServices(svc) } catch { }
+        loadUsers()
+        loadOrders()
+        loadMerchants()
+        showStatus('success', 'Data loaded!')
+    }
 
-        // Try localStorage first
-        const localSettings = localStorage.getItem('laundry_settings')
-        if (localSettings) {
-            try {
-                const parsed = JSON.parse(localSettings)
-                setSettings({ ...DEFAULT_SETTINGS, ...parsed })
-                showStatus('info', 'Loaded from local storage')
-            } catch { }
-        }
-
-        // Then try Supabase
+    const assignMerchant = async (orderId: string, merchantId: string) => {
         try {
-            const { data: s, error } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
-            if (error) {
-                showStatus('error', 'Database error: ' + error.message + '. Using local storage.')
-            } else if (s) {
-                setSettings({ ...DEFAULT_SETTINGS, ...s })
-                localStorage.setItem('laundry_settings', JSON.stringify(s))
-                showStatus('success', 'Data loaded from database')
-            }
-        } catch (err: any) {
-            showStatus('error', 'Failed to connect: ' + err.message)
-        }
+            await supabase.from('orders').update({ merchant_id: merchantId, status: 'confirmed' }).eq('id', orderId)
+            await supabase.from('order_status_history').insert({ order_id: orderId, status: 'confirmed', notes: 'Merchant Assigned' })
+            showStatus('success', 'Merchant Assigned!')
+            loadOrders()
+            // Update local selectedOrder if open
+            if (selectedOrder?.id === orderId) setSelectedOrder({ ...selectedOrder, merchant_id: merchantId })
+        } catch (e: any) { showStatus('error', e.message) }
+    }
 
-        // Load services
+    const loadUsers = async () => {
+        setUsersLoading(true)
+        try { const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }); if (data) setUsers(data) } catch { }
+        setUsersLoading(false)
+    }
+
+    const loadOrders = async () => {
+        setOrdersLoading(true)
+        try { const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(100); if (data) setOrders(data) } catch { }
+        setOrdersLoading(false)
+    }
+
+    const updateUserRole = async (userId: string, newRole: string) => {
+        try { await supabase.from('profiles').update({ role: newRole }).eq('id', userId); showStatus('success', 'Role updated!'); loadUsers() } catch (e: any) { showStatus('error', e.message) }
+    }
+
+    const deleteUser = async (userId: string) => {
+        if (!confirm('Hapus user ini?')) return
+        try { await supabase.from('profiles').delete().eq('id', userId); showStatus('success', 'User deleted!'); loadUsers() } catch (e: any) { showStatus('error', e.message) }
+    }
+
+    const updateOrderStatus = async (orderId: string, newStatus: string) => {
         try {
-            const { data: svc } = await supabase.from('platform_services').select('*').order('sort_order')
-            if (svc) setServices(svc)
-        } catch { }
+            await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+            await supabase.from('order_status_history').insert({ order_id: orderId, status: newStatus, notes: 'Diubah Admin' })
+            showStatus('success', 'Status updated!')
+            loadOrders()
+            if (selectedOrder?.id === orderId) setSelectedOrder({ ...selectedOrder, status: newStatus })
+        } catch (e: any) { showStatus('error', e.message) }
     }
 
     const saveSettings = async () => {
         setSaving(true)
-        showStatus('info', 'Saving...')
-
-        // Always save to localStorage first
         localStorage.setItem('laundry_settings', JSON.stringify(settings))
-
-        // Try Supabase
-        try {
-            const { error } = await supabase.from('site_settings').upsert({
-                id: 'main',
-                ...settings,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'id' })
-
-            if (error) {
-                showStatus('error', 'DB save failed: ' + error.message + '. Saved locally.')
-            } else {
-                showStatus('success', '✅ Saved to database!')
-            }
-        } catch (err: any) {
-            showStatus('error', 'Error: ' + err.message + '. Saved locally.')
-        }
-
+        try { await supabase.from('site_settings').upsert({ id: 'main', ...settings, updated_at: new Date().toISOString() }, { onConflict: 'id' }); showStatus('success', 'Saved!') } catch (e: any) { showStatus('error', e.message) }
         setSaving(false)
     }
 
     const selectTheme = async (themeId: string) => {
-        const newSettings = { ...settings, bg_theme: themeId }
-        setSettings(newSettings)
-
-        // Save to localStorage immediately
-        localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
-        showStatus('info', 'Saving theme: ' + themeId + '...')
-
-        // Try Supabase
-        try {
-            const { error } = await supabase.from('site_settings').upsert({
-                id: 'main',
-                bg_theme: themeId,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'id' })
-
-            if (error) {
-                showStatus('error', 'DB error: ' + error.message + '. Saved locally.')
-            } else {
-                showStatus('success', '✅ Theme saved: ' + themeId)
-            }
-        } catch (err: any) {
-            showStatus('error', 'Error: ' + err.message + '. Saved locally.')
-        }
+        setSettings({ ...settings, bg_theme: themeId })
+        localStorage.setItem('laundry_settings', JSON.stringify({ ...settings, bg_theme: themeId }))
+        try { await supabase.from('site_settings').upsert({ id: 'main', bg_theme: themeId }, { onConflict: 'id' }); showStatus('success', 'Theme saved!') } catch { }
     }
 
     const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file) return
-
-        if (!file.type.startsWith('image/')) {
-            showStatus('error', 'File harus berupa gambar')
-            return
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showStatus('error', 'Maksimal 5MB')
-            return
-        }
+        if (!file || !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) return
 
         setUploading(true)
-        showStatus('info', 'Uploading...')
-
         const reader = new FileReader()
+
         reader.onload = async () => {
             const base64 = reader.result as string
+
+            // 1. Update State
             const newSettings = { ...settings, custom_bg_url: base64, bg_theme: 'custom' }
             setSettings(newSettings)
 
-            // Save to localStorage
+            // 2. Update LocalStorage (Instant feedback)
             localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
 
-            // Try Supabase
+            // 3. Sync to Supabase (Persistence)
             try {
-                const { error } = await supabase.from('site_settings').upsert({
-                    id: 'main',
-                    custom_bg_url: base64,
-                    bg_theme: 'custom',
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' })
+                const { error } = await supabase
+                    .from('site_settings')
+                    .upsert({
+                        id: 'main',
+                        ...newSettings, // Sync everything to be safe
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'id' })
 
-                if (error) {
-                    showStatus('error', 'DB error: ' + error.message + '. Saved locally.')
-                } else {
-                    showStatus('success', '✅ Background uploaded!')
-                }
+                if (error) throw error
+                showStatus('success', 'Background uploaded & synced!')
             } catch (err: any) {
-                showStatus('error', 'Error: ' + err.message + '. Saved locally.')
+                showStatus('error', 'Upload failed: ' + err.message)
             }
 
             setUploading(false)
+            // Reset input so change event triggers again for same file
+            if (fileInputRef.current) fileInputRef.current.value = ''
         }
-        reader.onerror = () => {
-            showStatus('error', 'Failed to read file')
-            setUploading(false)
-        }
-        reader.readAsDataURL(file)
-    }
 
-    const removeCustomBg = () => {
-        const newSettings = { ...settings, custom_bg_url: '', bg_theme: 'gradient' }
-        setSettings(newSettings)
-        localStorage.setItem('laundry_settings', JSON.stringify(newSettings))
-        selectTheme('gradient')
+        reader.readAsDataURL(file)
     }
 
     const addService = async () => {
@@ -273,24 +283,15 @@ export default function AdminPage() {
         setNewService({ name: '', icon: '👕', price: 5000, unit_type: 'pcs', is_active: true })
     }
 
-    const updateService = async (s: PlatformService) => {
-        await supabase.from('platform_services').update(s).eq('id', s.id)
-        loadData()
-        setEditingService(null)
-    }
-
     const deleteService = async (id: string) => {
         if (!confirm('Hapus?')) return
         await supabase.from('platform_services').delete().eq('id', id)
         loadData()
     }
 
-    const toggleActive = async (s: PlatformService) => {
-        await supabase.from('platform_services').update({ is_active: !s.is_active }).eq('id', s.id)
-        loadData()
-    }
+    const formatDate = (d: string) => d ? new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'
+    const filteredOrders = orderFilter === 'all' ? orders : orders.filter(o => o.status === orderFilter)
 
-    // Login
     if (!isAuthenticated) {
         return (
             <main className="min-h-screen flex items-center justify-center px-4">
@@ -316,33 +317,25 @@ export default function AdminPage() {
     return (
         <main className="min-h-screen pb-8">
             <div className="fixed inset-0 -z-10"><div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" /></div>
-
-            {/* Header */}
             <header className="glass-bright sticky top-0 z-40 px-4 py-4 mb-4">
-                <div className="max-w-5xl mx-auto flex items-center justify-between">
+                <div className="max-w-6xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <Link href="/" className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><ChevronLeft className="w-5 h-5" /></Link>
                         <div className="flex items-center gap-2">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center"><Shield className="w-5 h-5 text-white" /></div>
-                            <div><h1 className="font-bold text-lg text-white">Super Admin <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full ml-2">v2.3 CLEAN</span></h1></div>
+                            <h1 className="font-bold text-lg text-white">Super Admin <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full ml-2">FULL</span></h1>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={loadData} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><RefreshCw className="w-5 h-5" /></button>
-                        <button onClick={saveSettings} disabled={saving} className="btn-gradient py-2 px-4 flex items-center gap-2">
-                            {saving ? 'Saving...' : <><Save className="w-4 h-4" />Simpan</>}
-                        </button>
+                        <button onClick={saveSettings} disabled={saving} className="btn-gradient py-2 px-4 flex items-center gap-2">{saving ? '...' : <><Save className="w-4 h-4" />Simpan</>}</button>
                     </div>
                 </div>
             </header>
 
-            {/* Status Message */}
             {status.msg && (
-                <div className="px-4 max-w-5xl mx-auto mb-4">
-                    <div className={`p-4 rounded-xl flex items-center gap-3 ${status.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                        status.type === 'success' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
-                            'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                        }`}>
+                <div className="px-4 max-w-6xl mx-auto mb-4">
+                    <div className={`p-4 rounded-xl flex items-center gap-3 ${status.type === 'error' ? 'bg-red-500/20 text-red-300' : status.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-blue-500/20 text-blue-300'}`}>
                         {status.type === 'error' && <AlertCircle className="w-5 h-5" />}
                         {status.type === 'success' && <Check className="w-5 h-5" />}
                         <span>{status.msg}</span>
@@ -350,119 +343,213 @@ export default function AdminPage() {
                 </div>
             )}
 
-            <div className="px-4 max-w-5xl mx-auto">
-                {/* Tabs */}
+            <div className="px-4 max-w-6xl mx-auto">
                 <div className="glass p-2 flex gap-2 mb-6 overflow-x-auto">
                     {[
+                        { id: 'orders', label: 'Pesanan', icon: ClipboardList, badge: orders.filter(o => o.status === 'pending').length },
+                        { id: 'users', label: 'Users', icon: Users, badge: users.length },
                         { id: 'theme', label: 'Tema', icon: Layout },
+                        { id: 'services', label: 'Layanan', icon: Package },
                         { id: 'home', label: 'Beranda', icon: Home },
                         { id: 'content', label: 'Konten', icon: FileText },
-                        { id: 'services', label: 'Layanan', icon: Package },
                         { id: 'settings', label: 'Warna', icon: Palette },
                     ].map((tab) => (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-3 px-4 rounded-xl font-medium transition flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)} className={`flex-1 py-3 px-4 rounded-xl font-medium transition flex items-center justify-center gap-2 whitespace-nowrap relative ${activeTab === tab.id ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}>
                             <tab.icon className="w-4 h-4" />{tab.label}
+                            {tab.badge !== undefined && tab.badge > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{tab.badge}</span>}
                         </button>
                     ))}
                 </div>
 
-                {/* Theme Tab - FIRST TAB NOW */}
-                {activeTab === 'theme' && (
+                {activeTab === 'orders' && (
                     <div className="space-y-6">
-                        {/* Upload Section */}
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-xl text-white mb-4 flex items-center gap-2">
-                                <Upload className="w-6 h-6 text-green-400" />
-                                Upload Background Custom
-                            </h3>
-                            <div className="space-y-4">
-                                <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleBgUpload} />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={uploading}
-                                    className="w-full flex items-center justify-center gap-4 p-8 border-2 border-dashed border-white/30 rounded-2xl hover:border-green-500/50 hover:bg-white/5 transition cursor-pointer"
-                                >
-                                    <Upload className={`w-10 h-10 ${uploading ? 'text-gray-500 animate-pulse' : 'text-green-400'}`} />
-                                    <div className="text-left">
-                                        <p className="text-white font-bold text-lg">{uploading ? 'Mengupload...' : 'Klik untuk upload gambar'}</p>
-                                        <p className="text-gray-400">JPG, PNG (Max 5MB)</p>
-                                    </div>
-                                </button>
-
-                                {settings.custom_bg_url && (
-                                    <div className="relative rounded-2xl overflow-hidden border-2 border-green-500/30">
-                                        <img src={settings.custom_bg_url} alt="Custom" className="w-full h-48 object-cover" />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition">
-                                            <button onClick={removeCustomBg} className="bg-red-500 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">
-                                                <Trash2 className="w-5 h-5" /> Hapus
-                                            </button>
-                                        </div>
-                                        <div className="absolute top-3 left-3 bg-green-500 text-white text-sm px-3 py-1 rounded-full font-bold">✓ Custom Active</div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Theme Options */}
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-xl text-white mb-4 flex items-center gap-2">
-                                <Image className="w-6 h-6 text-purple-400" />
-                                Pilih Tema Background
-                            </h3>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                                {BG_THEMES.map((theme) => (
-                                    <button
-                                        key={theme.id}
-                                        onClick={() => theme.id !== 'custom' && selectTheme(theme.id)}
-                                        disabled={theme.id === 'custom' && !settings.custom_bg_url}
-                                        className={`p-4 rounded-2xl border-3 transition ${settings.bg_theme === theme.id
-                                            ? 'border-green-500 ring-4 ring-green-500/30 bg-green-500/10'
-                                            : 'border-white/20 hover:border-white/40'
-                                            } ${theme.id === 'custom' && !settings.custom_bg_url ? 'opacity-40 cursor-not-allowed' : ''}`}
-                                    >
-                                        <div
-                                            className="w-full h-24 rounded-xl mb-3"
-                                            style={{
-                                                background: theme.id === 'custom'
-                                                    ? (settings.custom_bg_url ? `url(${settings.custom_bg_url})` : '#333')
-                                                    : theme.preview,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center'
-                                            }}
-                                        />
-                                        <p className="font-bold text-white text-sm">{theme.name}</p>
-                                        {settings.bg_theme === theme.id && <p className="text-green-400 text-xs mt-1 font-bold">✓ AKTIF</p>}
-                                    </button>
+                        <div className="glass p-4">
+                            <div className="flex flex-wrap gap-2">
+                                <button onClick={() => setOrderFilter('all')} className={`px-4 py-2 rounded-xl text-sm font-medium ${orderFilter === 'all' ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>Semua ({orders.length})</button>
+                                {STATUS_OPTIONS.slice(0, 5).map(s => (
+                                    <button key={s.value} onClick={() => setOrderFilter(s.value)} className={`px-4 py-2 rounded-xl text-sm font-medium ${orderFilter === s.value ? s.color + ' text-white' : 'bg-white/10 text-white'}`}>{s.label} ({orders.filter(o => o.status === s.value).length})</button>
                                 ))}
                             </div>
                         </div>
-
-                        {/* Preview */}
                         <div className="glass p-6">
-                            <h3 className="font-bold text-xl text-white mb-4">Preview Background</h3>
-                            <div
-                                className="rounded-2xl overflow-hidden h-56 relative"
-                                style={{
-                                    background: settings.bg_theme === 'custom' && settings.custom_bg_url
-                                        ? `url(${settings.custom_bg_url})`
-                                        : BG_THEMES.find(t => t.id === settings.bg_theme)?.preview || BG_THEMES[0].preview,
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center'
-                                }}
-                            >
-                                {settings.bg_theme === 'custom' && <div className="absolute inset-0 bg-black/50" />}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="text-center p-6">
-                                        <p className="text-3xl font-bold text-white mb-2">{settings.hero_title}</p>
-                                        <p className="text-gray-300">{settings.hero_subtitle.substring(0, 80)}...</p>
+                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><ClipboardList className="w-5 h-5 text-blue-400" />Daftar Pesanan ({filteredOrders.length})</h3>
+                            {ordersLoading ? <div className="text-center py-10"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-400" /></div>
+                                : filteredOrders.length === 0 ? <div className="text-center py-10 text-gray-400">Tidak ada pesanan</div>
+                                    : <div className="space-y-4">
+                                        {filteredOrders.map(order => {
+                                            const si = STATUS_OPTIONS.find(s => s.value === order.status) || STATUS_OPTIONS[0]
+                                            return (
+                                                <div key={order.id} className="p-4 bg-white/5 rounded-xl border border-white/10">
+                                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                                        <div className="flex-1 min-w-[200px]">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className="font-bold text-white">{order.order_number}</span>
+                                                                <span className={`px-2 py-1 rounded-full text-xs ${si.color} text-white`}>{si.label}</span>
+                                                            </div>
+                                                            <p className="text-gray-300">{order.customer_name}</p>
+                                                            <p className="text-sm text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" />{order.customer_whatsapp}</p>
+                                                            <p className="text-sm text-gray-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{order.pickup_address?.substring(0, 50)}...</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-green-400 font-bold text-lg">Rp {order.total?.toLocaleString()}</p>
+                                                            <p className="text-sm text-gray-500">{order.order_type} • {order.service_speed}</p>
+                                                            <p className="text-xs text-gray-600">{formatDate(order.created_at)}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-white/10">
+                                                        <span className="text-sm text-gray-400">Ubah Status:</span>
+                                                        <select value={order.status} onChange={(e) => updateOrderStatus(order.id, e.target.value)} className="bg-gray-800 text-white px-3 py-2 rounded-xl text-sm border border-white/20">
+                                                            {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                                        </select>
+                                                        <button onClick={() => setSelectedOrder(order)} className="ml-auto px-4 py-2 bg-blue-500/20 text-blue-400 rounded-xl text-sm flex items-center gap-1"><Eye className="w-4 h-4" />Detail</button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>}
+                        </div>
+                        {selectedOrder && (
+                            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setSelectedOrder(null)}>
+                                <div className="glass p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-bold text-xl text-white">Detail Pesanan</h3>
+                                        <button onClick={() => setSelectedOrder(null)} className="p-2 bg-white/10 rounded-xl"><X className="w-5 h-5" /></button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-white/5 rounded-xl">
+                                            <p className="text-2xl font-bold text-white mb-2">{selectedOrder.order_number}</p>
+                                            <p className="text-green-400 text-xl font-bold">Rp {selectedOrder.total?.toLocaleString()}</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div><p className="text-gray-500 text-sm">Nama</p><p className="text-white">{selectedOrder.customer_name}</p></div>
+                                            <div><p className="text-gray-500 text-sm">WhatsApp</p><p className="text-white">{selectedOrder.customer_whatsapp}</p></div>
+                                            <div><p className="text-gray-500 text-sm">Tipe</p><p className="text-white capitalize">{selectedOrder.order_type}</p></div>
+                                            <div><p className="text-gray-500 text-sm">Kecepatan</p><p className="text-white capitalize">{selectedOrder.service_speed}</p></div>
+                                        </div>
+                                        <div><p className="text-gray-500 text-sm">Alamat</p><p className="text-white">{selectedOrder.pickup_address}</p></div>
+                                        {selectedOrder.notes && <div><p className="text-gray-500 text-sm">Catatan</p><p className="text-white">{selectedOrder.notes}</p></div>}
+                                        <div className="pt-4 border-t border-white/10 space-y-4">
+                                            <div>
+                                                <p className="text-gray-500 text-sm mb-2">Assign to Merchant</p>
+                                                <select
+                                                    value={selectedOrder.merchant_id || ''}
+                                                    onChange={(e) => assignMerchant(selectedOrder.id, e.target.value)}
+                                                    className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl border border-white/20"
+                                                >
+                                                    <option value="">-- Pilih Merchant --</option>
+                                                    {merchants.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.full_name || m.email} - {m.phone || 'No Phone'}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500 text-sm mb-2">Update Status</p>
+                                                <select value={selectedOrder.status} onChange={(e) => updateOrderStatus(selectedOrder.id, e.target.value)} className="w-full bg-gray-800 text-white px-4 py-3 rounded-xl border border-white/20">
+                                                    {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'users' && (
+                    <div className="space-y-6">
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-purple-400" />Manajemen User ({users.length})</h3>
+                            {usersLoading ? <div className="text-center py-10"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-400" /></div>
+                                : users.length === 0 ? <div className="text-center py-10 text-gray-400">Belum ada user</div>
+                                    : <div className="space-y-3">
+                                        {users.map(user => (
+                                            <div key={user.id} className="p-4 bg-white/5 rounded-xl border border-white/10 flex flex-wrap items-center gap-4">
+                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                                                    {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || '?'}
+                                                </div>
+                                                <div className="flex-1 min-w-[200px]">
+                                                    <p className="font-bold text-white">{user.full_name || 'Tanpa Nama'}</p>
+                                                    <p className="text-sm text-gray-400 flex items-center gap-1"><Mail className="w-3 h-3" />{user.email || '-'}</p>
+                                                    {user.phone && <p className="text-sm text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" />{user.phone}</p>}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <select value={user.role || 'customer'} onChange={(e) => updateUserRole(user.id, e.target.value)} className={`px-3 py-2 rounded-xl text-sm font-medium border border-white/20 ${user.role === 'admin' ? 'bg-red-500/20 text-red-400' : user.role === 'merchant' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                        <option value="customer">Customer</option>
+                                                        <option value="merchant">Merchant</option>
+                                                        <option value="admin">Admin</option>
+                                                    </select>
+                                                    <button onClick={() => deleteUser(user.id)} className="p-2 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30"><Trash2 className="w-4 h-4" /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>}
+                        </div>
+                        <div className="glass p-4">
+                            <h4 className="text-sm text-gray-400 mb-2">Keterangan Role:</h4>
+                            <div className="flex flex-wrap gap-4 text-sm">
+                                <span className="text-blue-400">🔵 Customer = User biasa</span>
+                                <span className="text-yellow-400">🟡 Merchant = Pemilik laundry</span>
+                                <span className="text-red-400">🔴 Admin = Akses penuh</span>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Home Tab */}
+                {activeTab === 'theme' && (
+                    <div className="space-y-6">
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-xl text-white mb-4 flex items-center gap-2"><Upload className="w-6 h-6 text-green-400" />Upload Background</h3>
+                            <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleBgUpload} />
+                            <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-full flex items-center justify-center gap-4 p-8 border-2 border-dashed border-white/30 rounded-2xl hover:border-green-500/50 cursor-pointer">
+                                <Upload className={`w-10 h-10 ${uploading ? 'animate-pulse text-gray-500' : 'text-green-400'}`} />
+                                <div className="text-left"><p className="text-white font-bold">{uploading ? 'Uploading...' : 'Klik untuk upload'}</p><p className="text-gray-400">JPG, PNG (Max 5MB)</p></div>
+                            </button>
+                        </div>
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-xl text-white mb-4">Pilih Tema</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                {BG_THEMES.map((theme) => (
+                                    <button key={theme.id} onClick={() => theme.id !== 'custom' && selectTheme(theme.id)} className={`p-4 rounded-2xl border-2 ${settings.bg_theme === theme.id ? 'border-green-500 ring-4 ring-green-500/30' : 'border-white/20'}`}>
+                                        <div className="w-full h-20 rounded-xl mb-2" style={{ background: theme.id === 'custom' ? (settings.custom_bg_url || '#333') : theme.preview, backgroundSize: 'cover' }} />
+                                        <p className="font-bold text-white text-sm">{theme.name}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'services' && (
+                    <div className="space-y-6">
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-lg text-white mb-4"><Plus className="w-5 h-5 text-green-400 inline mr-2" />Tambah Layanan</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                <input className="input-glass col-span-2" placeholder="Nama" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} />
+                                <input className="input-glass" placeholder="Icon" value={newService.icon} onChange={(e) => setNewService({ ...newService, icon: e.target.value })} />
+                                <input className="input-glass" type="number" placeholder="Harga" value={newService.price} onChange={(e) => setNewService({ ...newService, price: +e.target.value })} />
+                                <select className="input-glass bg-gray-800" value={newService.unit_type} onChange={(e) => setNewService({ ...newService, unit_type: e.target.value })}><option value="pcs">Per Pcs</option><option value="kg">Per Kg</option></select>
+                            </div>
+                            <button onClick={addService} className="btn-gradient mt-4 py-2 px-6"><Plus className="w-4 h-4 inline mr-2" />Tambah</button>
+                        </div>
+                        <div className="glass p-6">
+                            <h3 className="font-bold text-lg text-white mb-4"><Package className="w-5 h-5 text-blue-400 inline mr-2" />Daftar ({services.length})</h3>
+                            <div className="space-y-3">
+                                {services.map((s) => (
+                                    <div key={s.id} className={`p-4 rounded-xl border flex items-center gap-4 ${s.is_active ? 'bg-white/5 border-white/10' : 'bg-gray-800/50 border-gray-700 opacity-60'}`}>
+                                        <span className="text-2xl">{s.icon}</span>
+                                        <div className="flex-1"><p className="font-medium text-white">{s.name}</p><p className="text-sm text-blue-400">Rp {s.price.toLocaleString()} / {s.unit_type}</p></div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => supabase.from('platform_services').update({ is_active: !s.is_active }).eq('id', s.id).then(loadData)} className={`px-3 py-1 rounded-full text-xs ${s.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>{s.is_active ? 'Aktif' : 'Off'}</button>
+                                            <button onClick={() => deleteService(s.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'home' && (
                     <div className="space-y-6">
                         <div className="glass p-6">
@@ -479,30 +566,14 @@ export default function AdminPage() {
                                 <input className="input-glass w-full" value={settings.promo_text} onChange={(e) => setSettings({ ...settings, promo_text: e.target.value })} placeholder="Teks Promo" />
                             </div>
                         </div>
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4">Fitur (4 Box)</h3>
-                            <div className="grid md:grid-cols-2 gap-4">
-                                {[1, 2, 3, 4].map((n) => (
-                                    <div key={n} className="bg-white/5 p-4 rounded-xl space-y-2">
-                                        <p className="text-xs text-gray-500">Fitur {n}</p>
-                                        <input className="input-glass w-full text-sm" value={(settings as any)[`feature_${n}_title`]} onChange={(e) => setSettings({ ...settings, [`feature_${n}_title`]: e.target.value })} placeholder="Judul" />
-                                        <input className="input-glass w-full text-sm" value={(settings as any)[`feature_${n}_desc`]} onChange={(e) => setSettings({ ...settings, [`feature_${n}_desc`]: e.target.value })} placeholder="Deskripsi" />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
                 )}
 
-                {/* Content Tab */}
                 {activeTab === 'content' && (
                     <div className="space-y-6">
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4">Dashboard Order</h3>
-                            <div className="space-y-4">
-                                <div><label className="text-sm text-gray-400 mb-2 block">Judul</label><input className="input-glass w-full" value={settings.dashboard_title} onChange={(e) => setSettings({ ...settings, dashboard_title: e.target.value })} /></div>
-                                <div><label className="text-sm text-gray-400 mb-2 block">Prefix Outlet</label><input className="input-glass w-full" value={settings.dashboard_merchant_prefix} onChange={(e) => setSettings({ ...settings, dashboard_merchant_prefix: e.target.value })} /></div>
-                            </div>
+                            <div><label className="text-sm text-gray-400 mb-2 block">Judul</label><input className="input-glass w-full" value={settings.dashboard_title} onChange={(e) => setSettings({ ...settings, dashboard_title: e.target.value })} /></div>
                         </div>
                         <div className="glass p-6">
                             <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" />Reguler & Express</h3>
@@ -528,54 +599,6 @@ export default function AdminPage() {
                     </div>
                 )}
 
-                {/* Services Tab */}
-                {activeTab === 'services' && (
-                    <div className="space-y-6">
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4"><Plus className="w-5 h-5 text-green-400 inline mr-2" />Tambah Layanan</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                <input className="input-glass col-span-2" placeholder="Nama" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} />
-                                <input className="input-glass" placeholder="Icon" value={newService.icon} onChange={(e) => setNewService({ ...newService, icon: e.target.value })} />
-                                <input className="input-glass" type="number" placeholder="Harga" value={newService.price} onChange={(e) => setNewService({ ...newService, price: +e.target.value })} />
-                                <select className="input-glass bg-gray-800 text-white" value={newService.unit_type} onChange={(e) => setNewService({ ...newService, unit_type: e.target.value })}>
-                                    <option value="pcs">Per Pcs</option><option value="kg">Per Kg</option>
-                                </select>
-                            </div>
-                            <button onClick={addService} className="btn-gradient mt-4 py-2 px-6"><Plus className="w-4 h-4 inline mr-2" />Tambah</button>
-                        </div>
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4"><Package className="w-5 h-5 text-blue-400 inline mr-2" />Daftar ({services.length})</h3>
-                            <div className="space-y-3">
-                                {services.map((s) => (
-                                    <div key={s.id} className={`p-4 rounded-xl border flex items-center gap-4 ${s.is_active ? 'bg-white/5 border-white/10' : 'bg-gray-800/50 border-gray-700 opacity-60'}`}>
-                                        <span className="text-2xl">{s.icon}</span>
-                                        {editingService?.id === s.id ? (
-                                            <div className="flex-1 grid grid-cols-4 gap-2">
-                                                <input className="input-glass text-sm col-span-2" value={editingService.name} onChange={(e) => setEditingService({ ...editingService, name: e.target.value })} />
-                                                <input className="input-glass text-sm" type="number" value={editingService.price} onChange={(e) => setEditingService({ ...editingService, price: +e.target.value })} />
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => updateService(editingService)} className="p-2 bg-green-500/20 text-green-400 rounded-lg"><Check className="w-4 h-4" /></button>
-                                                    <button onClick={() => setEditingService(null)} className="p-2 bg-gray-500/20 text-gray-400 rounded-lg"><X className="w-4 h-4" /></button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <div className="flex-1"><p className="font-medium text-white">{s.name}</p><p className="text-sm text-blue-400">Rp {s.price.toLocaleString()} / {s.unit_type}</p></div>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => toggleActive(s)} className={`px-3 py-1 rounded-full text-xs ${s.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>{s.is_active ? 'Aktif' : 'Off'}</button>
-                                                    <button onClick={() => setEditingService(s)} className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                                                    <button onClick={() => deleteService(s.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Color Settings Tab */}
                 {activeTab === 'settings' && (
                     <div className="space-y-6">
                         <div className="glass p-6">
@@ -583,13 +606,6 @@ export default function AdminPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="text-sm text-gray-400 mb-2 block">Primer</label><div className="flex gap-2"><input type="color" className="w-12 h-12 rounded-xl cursor-pointer" value={settings.primary_color} onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })} /><input className="input-glass flex-1" value={settings.primary_color} onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })} /></div></div>
                                 <div><label className="text-sm text-gray-400 mb-2 block">Aksen</label><div className="flex gap-2"><input type="color" className="w-12 h-12 rounded-xl cursor-pointer" value={settings.accent_color} onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })} /><input className="input-glass flex-1" value={settings.accent_color} onChange={(e) => setSettings({ ...settings, accent_color: e.target.value })} /></div></div>
-                            </div>
-                        </div>
-                        <div className="glass p-6">
-                            <h3 className="font-bold text-lg text-white mb-4">Preview Tombol</h3>
-                            <div className="flex gap-4 flex-wrap">
-                                <button className="px-8 py-3 rounded-xl font-semibold text-white" style={{ background: `linear-gradient(135deg, ${settings.primary_color}, ${settings.accent_color})` }}>Order Sekarang</button>
-                                <button className="px-8 py-3 rounded-xl font-semibold" style={{ border: `2px solid ${settings.primary_color}`, color: settings.primary_color }}>Lihat Promo</button>
                             </div>
                         </div>
                     </div>

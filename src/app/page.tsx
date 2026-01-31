@@ -121,23 +121,20 @@ export default function Home() {
   }
 
   const loadSettings = async () => {
-    // Try localStorage first (set by admin panel)
+    // 1. Try localStorage first (fast render)
     const localSettings = localStorage.getItem('laundry_settings')
     if (localSettings) {
       try {
         const parsed = JSON.parse(localSettings)
         setSettings({ ...DEFAULT_SETTINGS, ...parsed })
-        // Don't override with DB - trust localStorage as source of truth
-        // Admin panel updates both localStorage and DB
-        return // Exit here - use localStorage only
       } catch { }
     }
 
-    // Only try Supabase if NO localStorage exists
+    // 2. Always fetch fresh data from Supabase to sync & update
     try {
       const { data } = await supabase.from('site_settings').select('*').eq('id', 'main').single()
       if (data) {
-        setSettings({ ...DEFAULT_SETTINGS, ...data })
+        setSettings(prev => ({ ...prev, ...data }))
         localStorage.setItem('laundry_settings', JSON.stringify(data))
       }
     } catch { }

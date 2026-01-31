@@ -2,38 +2,42 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Plus, Trash2, Package, DollarSign, Clock, TrendingUp, ChevronRight, Sparkles, Settings, LogOut } from 'lucide-react'
+import { Plus, Trash2, Package, DollarSign, Clock, TrendingUp, ChevronRight, Sparkles, Settings, LogOut, ClipboardList, CheckCircle, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
-
-type Service = {
-    id: string
-    name: string
-    description: string
-    price_per_unit: number
-    unit_type: string
-}
 
 type Order = {
     id: string
+    order_number: string
     status: string
-    total_price: number
+    total: number
     created_at: string
+    customer_name: string
+    customer_whatsapp: string
+    pickup_address: string
+    notes?: string
+    service_speed: string
+    order_type: string
 }
 
+const STATUS_OPTIONS = [
+    { value: 'pending', label: 'Menunggu', color: 'bg-yellow-500' },
+    { value: 'confirmed', label: 'Dikonfirmasi', color: 'bg-blue-500' },
+    { value: 'pickup', label: 'Dijemput', color: 'bg-cyan-500' },
+    { value: 'washing', label: 'Dicuci', color: 'bg-blue-400' },
+    { value: 'drying', label: 'Dikeringkan', color: 'bg-orange-500' },
+    { value: 'ironing', label: 'Disetrika', color: 'bg-purple-500' },
+    { value: 'ready', label: 'Siap Antar', color: 'bg-green-400' },
+    { value: 'delivery', label: 'Diantar', color: 'bg-cyan-400' },
+    { value: 'completed', label: 'Selesai', color: 'bg-green-500' },
+    { value: 'cancelled', label: 'Dibatalkan', color: 'bg-red-500' },
+]
+
 export default function MerchantDashboard() {
-    const [services, setServices] = useState<Service[]>([])
     const [orders, setOrders] = useState<Order[]>([])
     const [loading, setLoading] = useState(true)
-    const [isAdding, setIsAdding] = useState(false)
     const [user, setUser] = useState<any>(null)
+    const [statusFilter, setStatusFilter] = useState('all')
     const supabase = createClient()
-
-    const [newService, setNewService] = useState({
-        name: '',
-        description: '',
-        price_per_unit: '',
-        unit_type: 'kg'
-    })
 
     useEffect(() => {
         checkAuth()
@@ -43,56 +47,42 @@ export default function MerchantDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
             setUser(user)
-            fetchServices(user.id)
             fetchOrders(user.id)
+
+            // Realtime subscription for orders
+            const subscription = supabase
+                .channel('merchant_orders')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `merchant_id=eq.${user.id}` }, () => fetchOrders(user.id))
+                .subscribe()
+
+            return () => { subscription.unsubscribe() }
+        } else {
+            setLoading(false)
+            // Redirect or show login
+            window.location.href = '/login'
         }
-        setLoading(false)
-    }
-
-    const fetchServices = async (userId: string) => {
-        const { data } = await supabase
-            .from('services')
-            .select('*')
-            .eq('merchant_id', userId)
-            .order('created_at', { ascending: false })
-
-        if (data) setServices(data)
     }
 
     const fetchOrders = async (userId: string) => {
+        setLoading(true)
         const { data } = await supabase
             .from('orders')
             .select('*')
             .eq('merchant_id', userId)
             .order('created_at', { ascending: false })
-            .limit(10)
 
         if (data) setOrders(data)
+        setLoading(false)
     }
 
-    const handleAddService = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!user) return
-
-        const { error } = await supabase.from('services').insert({
-            merchant_id: user.id,
-            name: newService.name,
-            description: newService.description,
-            price_per_unit: parseFloat(newService.price_per_unit),
-            unit_type: newService.unit_type
-        })
-
-        if (!error) {
-            setNewService({ name: '', description: '', price_per_unit: '', unit_type: 'kg' })
-            setIsAdding(false)
-            fetchServices(user.id)
+    const updateOrderStatus = async (orderId: string, newStatus: string) => {
+        try {
+            await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+            await supabase.from('order_status_history').insert({ order_id: orderId, status: newStatus, notes: 'Merchant Update' })
+            fetchOrders(user.id) // Optimistic update ideally, but fetch is safer
+        } catch (error) {
+            console.error('Error updating status:', error)
         }
-    }
-
-    const handleDelete = async (id: string) => {
-        if (!confirm('Hapus layanan ini?')) return
-        await supabase.from('services').delete().eq('id', id)
-        if (user) fetchServices(user.id)
     }
 
     const handleLogout = async () => {
@@ -101,43 +91,32 @@ export default function MerchantDashboard() {
     }
 
     const getTotalRevenue = () => {
-        return orders.reduce((sum, o) => sum + (o.total_price || 0), 0)
+        return orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.total || 0), 0)
     }
 
-    if (loading) {
+    const filteredOrders = statusFilter === 'all' ? orders : orders.filter(o => o.status === statusFilter)
+
+    if (!user && loading) {
         return (
             <main className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center floating">
                         <Sparkles className="w-8 h-8 text-white" />
                     </div>
-                    <p className="text-gray-400">Loading dashboard...</p>
                 </div>
             </main>
         )
     }
 
-    if (!user) {
-        return (
-            <main className="min-h-screen flex items-center justify-center px-4">
-                <div className="glass p-8 text-center max-w-md">
-                    <h2 className="text-2xl font-bold text-white mb-4">Akses Ditolak</h2>
-                    <p className="text-gray-400 mb-6">Silakan login sebagai Mitra Laundry untuk mengakses dashboard.</p>
-                    <Link href="/login" className="btn-gradient inline-block">Login Sekarang</Link>
-                </div>
-            </main>
-        )
-    }
+    if (!user) return null
 
     return (
         <main className="min-h-screen pb-8">
-            {/* Ambient Background */}
-            <div className="fixed inset-0 -z-10 overflow-hidden">
+            <div className="fixed inset-0 -z-10 overflow-hidden bg-slate-900">
                 <div className="absolute top-1/4 -left-32 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px]"></div>
                 <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px]"></div>
             </div>
 
-            {/* Header */}
             <header className="glass-bright sticky top-0 z-40 px-4 py-4 mb-6">
                 <div className="max-w-4xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -145,28 +124,22 @@ export default function MerchantDashboard() {
                             <Sparkles className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="font-bold text-lg text-white">Mitra Dashboard</h1>
+                            <h1 className="font-bold text-lg text-white">Merchant Panel</h1>
                             <p className="text-xs text-gray-400">{user.email}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition">
-                            <Settings className="w-5 h-5 text-gray-400" />
-                        </button>
-                        <button onClick={handleLogout} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 transition text-red-400">
-                            <LogOut className="w-5 h-5" />
-                        </button>
-                    </div>
+                    <button onClick={handleLogout} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 transition text-red-400">
+                        <LogOut className="w-5 h-5" />
+                    </button>
                 </div>
             </header>
 
             <div className="px-4 max-w-4xl mx-auto">
-                {/* Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     {[
-                        { label: 'Layanan Aktif', value: services.length, icon: Package, color: 'from-blue-500 to-cyan-400' },
-                        { label: 'Total Pesanan', value: orders.length, icon: Clock, color: 'from-purple-500 to-pink-400' },
-                        { label: 'Pendapatan', value: `Rp ${(getTotalRevenue() / 1000).toFixed(0)}k`, icon: DollarSign, color: 'from-green-500 to-emerald-400' },
+                        { label: 'Pesanan Aktif', value: orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length, icon: Package, color: 'from-blue-500 to-cyan-400' },
+                        { label: 'Selesai', value: orders.filter(o => o.status === 'completed').length, icon: CheckCircle, color: 'from-green-500 to-emerald-400' },
+                        { label: 'Pendapatan', value: `Rp ${(getTotalRevenue() / 1000).toFixed(0)}k`, icon: DollarSign, color: 'from-purple-500 to-pink-400' },
                         { label: 'Rating', value: '4.9 ⭐', icon: TrendingUp, color: 'from-yellow-500 to-orange-400' },
                     ].map((stat, i) => (
                         <div key={i} className="glass p-4">
@@ -179,129 +152,58 @@ export default function MerchantDashboard() {
                     ))}
                 </div>
 
-                {/* Services Section */}
-                <div className="mb-8">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold gradient-text">Layanan Saya</h2>
-                        <button
-                            onClick={() => setIsAdding(!isAdding)}
-                            className="btn-gradient text-sm py-2 px-4 flex items-center gap-2"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Tambah
-                        </button>
-                    </div>
-
-                    {isAdding && (
-                        <div className="glass p-6 mb-4">
-                            <h3 className="font-semibold text-white mb-4">Layanan Baru</h3>
-                            <form onSubmit={handleAddService} className="grid md:grid-cols-2 gap-4">
-                                <input
-                                    className="input-glass"
-                                    placeholder="Nama Layanan"
-                                    required
-                                    value={newService.name}
-                                    onChange={e => setNewService({ ...newService, name: e.target.value })}
-                                />
-                                <input
-                                    className="input-glass"
-                                    placeholder="Harga (contoh: 7000)"
-                                    type="number"
-                                    required
-                                    value={newService.price_per_unit}
-                                    onChange={e => setNewService({ ...newService, price_per_unit: e.target.value })}
-                                />
-                                <select
-                                    className="input-glass"
-                                    value={newService.unit_type}
-                                    onChange={e => setNewService({ ...newService, unit_type: e.target.value })}
-                                >
-                                    <option value="kg">per Kg</option>
-                                    <option value="pcs">per Lembar/Pcs</option>
-                                    <option value="mtr">per Meter</option>
-                                </select>
-                                <input
-                                    className="input-glass"
-                                    placeholder="Deskripsi (opsional)"
-                                    value={newService.description}
-                                    onChange={e => setNewService({ ...newService, description: e.target.value })}
-                                />
-                                <div className="md:col-span-2 flex justify-end gap-3">
-                                    <button type="button" onClick={() => setIsAdding(false)} className="px-4 py-2 text-gray-400 font-medium">
-                                        Batal
-                                    </button>
-                                    <button type="submit" className="btn-gradient py-2 px-6">
-                                        Simpan
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                        {services.map(service => (
-                            <div key={service.id} className="glass p-5 card-hover">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-lg text-white mb-1">{service.name}</h3>
-                                        <p className="text-sm text-gray-400 mb-3">{service.description || 'Tidak ada deskripsi'}</p>
-                                        <span className="inline-block bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 text-blue-300 text-sm px-3 py-1 rounded-full font-semibold">
-                                            Rp {service.price_per_unit.toLocaleString('id-ID')} / {service.unit_type}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => handleDelete(service.id)}
-                                        className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
+                <div className="glass p-4 mb-6 overflow-x-auto">
+                    <div className="flex gap-2 min-w-max">
+                        <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${statusFilter === 'all' ? 'bg-white text-black' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Semua</button>
+                        {STATUS_OPTIONS.map(s => (
+                            <button key={s.value} onClick={() => setStatusFilter(s.value)} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${statusFilter === s.value ? s.color + ' text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                {s.label} ({orders.filter(o => o.status === s.value).length})
+                            </button>
                         ))}
-                        {services.length === 0 && (
-                            <div className="col-span-full glass p-8 text-center text-gray-400">
-                                <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                <p>Belum ada layanan. Klik "Tambah" untuk membuat.</p>
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Recent Orders */}
-                <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold gradient-text">Pesanan Terbaru</h2>
-                        <Link href="/merchant/orders" className="text-blue-400 text-sm font-medium flex items-center gap-1">
-                            Lihat Semua <ChevronRight className="w-4 h-4" />
-                        </Link>
-                    </div>
-
-                    {orders.length > 0 ? (
-                        <div className="space-y-3">
-                            {orders.slice(0, 5).map(order => (
-                                <div key={order.id} className="glass p-4 flex items-center justify-between">
-                                    <div>
-                                        <p className="font-medium text-white">Pesanan #{order.id.slice(0, 8)}</p>
-                                        <p className="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString('id-ID')}</p>
+                <div className="space-y-4">
+                    <h2 className="text-xl font-bold text-white mb-4">Daftar Pesanan</h2>
+                    {loading ? <div className="text-center py-12"><RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-400" /></div> :
+                        filteredOrders.length === 0 ? <div className="text-center py-12 text-gray-400">Tidak ada pesanan</div> :
+                            filteredOrders.map(order => {
+                                const currentStatus = STATUS_OPTIONS.find(s => s.value === order.status) || STATUS_OPTIONS[0]
+                                return (
+                                    <div key={order.id} className="glass p-5 border border-white/10 hover:border-white/20 transition">
+                                        <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-1">
+                                                    <h3 className="font-bold text-lg text-white">{order.order_number || 'Order #' + order.id.slice(0, 6)}</h3>
+                                                    <span className={`px-2 py-1 rounded-md text-xs font-bold ${currentStatus.color} text-white`}>{currentStatus.label}</span>
+                                                </div>
+                                                <p className="text-gray-300">{order.customer_name}</p>
+                                                <p className="text-sm text-gray-500">{order.pickup_address}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xl font-bold text-green-400">Rp {order.total?.toLocaleString()}</p>
+                                                <p className="text-sm text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 bg-black/20 rounded-xl mb-4 text-sm text-gray-300 grid grid-cols-2 gap-2">
+                                            <div><span className="text-gray-500">Tipe:</span> {order.order_type}</div>
+                                            <div><span className="text-gray-500">Layanan:</span> {order.service_speed}</div>
+                                            <div className="col-span-2"><span className="text-gray-500">Catatan:</span> {order.notes || '-'}</div>
+                                            <div className="col-span-2"><span className="text-gray-500">WA:</span> {order.customer_whatsapp}</div>
+                                        </div>
+                                        <div className="flex items-center gap-3 pt-3 border-t border-white/10">
+                                            <span className="text-sm text-gray-400">Update Status:</span>
+                                            <select
+                                                value={order.status}
+                                                onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                                                className="bg-gray-800 text-white px-3 py-2 rounded-xl text-sm border border-white/20 flex-1 max-w-xs"
+                                            >
+                                                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-white">Rp {order.total_price?.toLocaleString('id-ID') || '0'}</p>
-                                        <span className={`text-xs px-2 py-1 rounded-full ${order.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                                                order.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                    'bg-blue-500/20 text-blue-400'
-                                            }`}>
-                                            {order.status}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="glass p-8 text-center text-gray-400">
-                            <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p>Belum ada pesanan masuk.</p>
-                        </div>
-                    )}
+                                )
+                            })}
                 </div>
             </div>
         </main>
