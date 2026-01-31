@@ -389,12 +389,20 @@ export default function OrderPage() {
                             <div className="space-y-3">
                                 <button onClick={() => setServiceSpeed('regular')} className={`w-full p-4 rounded-xl border-2 transition flex items-center justify-between ${serviceSpeed === 'regular' ? 'border-blue-500 bg-blue-500/20' : 'border-white/10'}`}>
                                     <div><p className="font-bold text-white">{settings.regular_label}</p><p className="text-sm text-gray-400">Estimasi {settings.regular_eta}</p></div>
-                                    <p className="text-lg font-bold text-blue-400">Rp {settings.regular_price_per_kg.toLocaleString()}/kg</p>
+                                    <div className="text-right">
+                                        <p className="text-lg font-bold text-blue-400">
+                                            {orderType === 'kiloan' ? `Rp ${settings.regular_price_per_kg.toLocaleString()}/kg` : 'Harga Normal'}
+                                        </p>
+                                    </div>
                                 </button>
                                 {settings.express_enabled && (
                                     <button onClick={() => setServiceSpeed('express')} className={`w-full p-4 rounded-xl border-2 transition flex items-center justify-between ${serviceSpeed === 'express' ? 'border-yellow-500 bg-yellow-500/20' : 'border-white/10'}`}>
                                         <div className="flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-400" /><div><p className="font-bold text-white">{settings.express_label}</p><p className="text-sm text-gray-400">Estimasi {settings.express_eta}</p></div></div>
-                                        <div className="text-right"><p className="text-lg font-bold text-yellow-400">Rp {settings.express_price_per_kg.toLocaleString()}/kg</p></div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-yellow-400">
+                                                {orderType === 'kiloan' ? `Rp ${settings.express_price_per_kg.toLocaleString()}/kg` : '2x Harga Item'}
+                                            </p>
+                                        </div>
                                     </button>
                                 )}
                             </div>
