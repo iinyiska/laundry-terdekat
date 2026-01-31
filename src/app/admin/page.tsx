@@ -200,7 +200,6 @@ export default function AdminPage() {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .order('created_at', { ascending: false })
                 .abortSignal(undefined as any) // Disable abort signal
 
             if (error) {

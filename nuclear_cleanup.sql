@@ -118,6 +118,10 @@ ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), profiles.full_name);
 
+-- ADD MISSING COLUMNS TO PROFILES
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+
 -- ========== STEP 5: REFRESH STATS ==========
 ANALYZE public.profiles;
 ANALYZE public.orders;
