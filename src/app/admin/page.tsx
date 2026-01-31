@@ -69,6 +69,8 @@ type Order = {
     user_id?: string
     merchant_id?: string
     notes?: string
+    items?: any[]
+    items_detail?: Record<string, number>
 }
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -428,6 +430,34 @@ export default function AdminPage() {
                                         </div>
                                         <div><p className="text-gray-500 text-sm">Alamat</p><p className="text-white">{selectedOrder.pickup_address}</p></div>
                                         {selectedOrder.notes && <div><p className="text-gray-500 text-sm">Catatan</p><p className="text-white">{selectedOrder.notes}</p></div>}
+
+                                        {/* ITEMS DETAIL SECTION */}
+                                        <div className="bg-white/5 p-4 rounded-xl">
+                                            <p className="text-gray-400 text-sm mb-2 font-bold mb-2">Detail Item</p>
+                                            {selectedOrder.order_type === 'satuan' && selectedOrder.items && selectedOrder.items.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {selectedOrder.items.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex justify-between text-sm">
+                                                            <span className="text-white">{item.qty}x {item.name}</span>
+                                                            <span className="text-gray-400">Rp {item.price?.toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : selectedOrder.order_type === 'kiloan' && selectedOrder.items_detail ? (
+                                                <div className="space-y-2">
+                                                    {Object.entries(selectedOrder.items_detail).map(([key, qty]: [string, any]) => (
+                                                        qty > 0 && (
+                                                            <div key={key} className="flex justify-between text-sm">
+                                                                <span className="text-white capitalize">{key.replace(/_/g, ' ')}</span>
+                                                                <span className="text-gray-400">{qty} pcs</span>
+                                                            </div>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-gray-500 text-sm italic">Tidak ada detail item</p>
+                                            )}
+                                        </div>
                                         <div className="pt-4 border-t border-white/10 space-y-4">
                                             <div>
                                                 <p className="text-gray-500 text-sm mb-2">Assign to Merchant</p>
@@ -510,8 +540,8 @@ export default function AdminPage() {
                             <h3 className="font-bold text-xl text-white mb-4">Pilih Tema</h3>
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                                 {BG_THEMES.map((theme) => (
-                                    <button key={theme.id} onClick={() => theme.id !== 'custom' && selectTheme(theme.id)} className={`p-4 rounded-2xl border-2 ${settings.bg_theme === theme.id ? 'border-green-500 ring-4 ring-green-500/30' : 'border-white/20'}`}>
-                                        <div className="w-full h-20 rounded-xl mb-2" style={{ background: theme.id === 'custom' ? (settings.custom_bg_url || '#333') : theme.preview, backgroundSize: 'cover' }} />
+                                    <button key={theme.id} onClick={() => selectTheme(theme.id)} className={`p-4 rounded-2xl border-2 ${settings.bg_theme === theme.id ? 'border-green-500 ring-4 ring-green-500/30' : 'border-white/20'}`}>
+                                        <div className="w-full h-20 rounded-xl mb-2" style={{ background: theme.id === 'custom' ? (settings.custom_bg_url ? `url(${settings.custom_bg_url})` : '#333') : theme.preview, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                                         <p className="font-bold text-white text-sm">{theme.name}</p>
                                     </button>
                                 ))}
