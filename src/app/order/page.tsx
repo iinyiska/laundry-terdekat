@@ -269,8 +269,12 @@ export default function OrderPage() {
                 status: 'pending'
             }
 
-            // Create order
-            const { data: order, error: orderError } = await supabase.from('orders').insert(newOrder).select().single()
+            // Create order (Standard Insert)
+            const { data: order, error: orderError } = await supabase
+                .from('orders')
+                .insert(newOrder)
+                .select()
+                .maybeSingle() // Use maybeSingle to avoid 406 Not Acceptable errors if RLS hides the row
 
             if (orderError) throw orderError
 

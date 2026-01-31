@@ -241,9 +241,9 @@ export default function AdminPage() {
         const file = e.target.files?.[0]
         if (!file || !file.type.startsWith('image/')) return
 
-        // Critical Fix: Limit to 1.5MB to avoid LocalStorage crash
-        if (file.size > 1.5 * 1024 * 1024) {
-            showStatus('error', 'File terlalu besar! Max 1.5MB');
+        // Limit to 10MB as requested by User (Note: Larger files may lag)
+        if (file.size > 10 * 1024 * 1024) {
+            showStatus('error', 'File terlalu besar! Max 10MB');
             return;
         }
 
